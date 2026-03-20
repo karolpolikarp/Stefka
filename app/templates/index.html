@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juliusz — Lokalna Transkrypcja i Notatki</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Juliusz</h1>
+            <p class="subtitle">Lokalna transkrypcja audio i strukturyzowanie notatek</p>
+            <p class="security-badge">Wszystkie dane przetwarzane lokalnie — nic nie opuszcza Twojego komputera</p>
+        </header>
+
+        <!-- Upload Section -->
+        <section id="upload-section" class="card">
+            <h2>Prześlij plik</h2>
+            <form id="upload-form">
+                <div id="drop-zone" class="drop-zone">
+                    <div class="drop-zone-content">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <p>Przeciągnij plik tutaj lub <span class="link">kliknij aby wybrać</span></p>
+                        <p class="hint">Audio: mp3, wav, m4a, flac, ogg, webm, wma, aac</p>
+                        <p class="hint">Tekst: txt, md, docx, pdf</p>
+                    </div>
+                    <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.flac,.ogg,.webm,.wma,.aac,.txt,.md,.docx,.pdf" hidden>
+                </div>
+
+                <div id="file-info" class="file-info" hidden>
+                    <span id="file-name"></span>
+                    <span id="file-size"></span>
+                    <button type="button" id="clear-file" class="btn-icon" title="Usuń plik">&times;</button>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="export-format">Format notatki</label>
+                        <select id="export-format" name="export_format">
+                            <option value="md">Markdown (.md)</option>
+                            <option value="pdf">PDF (.pdf)</option>
+                            <option value="docx">Word (.docx)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email (opcjonalnie)</label>
+                        <input type="email" id="email" name="email" placeholder="twoj@email.pl" disabled title="Funkcja planowana w v2">
+                    </div>
+                </div>
+
+                <button type="submit" id="submit-btn" class="btn-primary" disabled>
+                    Przetwórz plik
+                </button>
+            </form>
+        </section>
+
+        <!-- Progress Section -->
+        <section id="progress-section" class="card" hidden>
+            <h2>Przetwarzanie</h2>
+            <div class="progress-container">
+                <div class="progress-file-info">
+                    <span class="pfi-name" id="progress-filename"></span>
+                    <span class="pfi-format" id="progress-format"></span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="progress-percent">0%</span>
+                    <span id="progress-status">Oczekiwanie...</span>
+                </div>
+                <p id="progress-message" class="progress-message"></p>
+            </div>
+        </section>
+
+        <!-- Result Section -->
+        <section id="result-section" class="card card-success" hidden>
+            <h2>Notatka gotowa</h2>
+            <p id="result-message"></p>
+            <div class="result-info">
+                <span id="result-filename"></span>
+                <span class="ri-format" id="result-format"></span>
+            </div>
+            <div class="result-actions">
+                <button id="download-btn" class="btn-primary">Pobierz notatkę</button>
+                <button id="new-file-btn" class="btn-secondary">Przetwórz kolejny plik</button>
+            </div>
+        </section>
+
+        <!-- Error Section -->
+        <section id="error-section" class="card card-error" hidden>
+            <h2>Błąd</h2>
+            <p id="error-message"></p>
+            <button id="retry-btn" class="btn-secondary">Spróbuj ponownie</button>
+        </section>
+
+        <footer>
+            <p>Juliusz v1.0 — mlx-whisper (large-v3-turbo) + PLLuM-12B-instruct</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

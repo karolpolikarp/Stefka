@@ -1,0 +1,54 @@
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
+
+from app.config import OUTPUT_DIR, EXPORT_FORMATS
+from app.models.schemas import JobStatus
+from app.routers.upload import jobs
+
+router = APIRouter(prefix="/api", tags=["download"])
+
+
+@router.get("/download/{job_id}")
+async def download_note(job_id: str, fmt: str | None = None):
+    """Download the generated note file.
+
+    If fmt is not specified, uses the format chosen during upload.
+    """
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job nie znaleziony.")
+    if job.status != JobStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Job nie jest jeszcze ukończony.")
+
+    # Use the format from upload if not explicitly requested
+    fmt = fmt or job.export_format
+    if fmt not in EXPORT_FORMATS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nieobsługiwany format: {fmt}. Dozwolone: {', '.join(EXPORT_FORMATS)}",
+        )
+
+    file_path = OUTPUT_DIR / f"{job_id}_notatka.{fmt}"
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Plik notatki w formacie .{fmt} nie znaleziony. "
+            f"Notatka została wyeksportowana jako .{job.export_format}.",
+        )
+
+    safe_name = Path(job.original_filename).stem if job.original_filename else "notatka"
+    download_name = f"{safe_name}_notatka.{fmt}"
+
+    media_types = {
+        "md": "text/markdown",
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+
+    return FileResponse(
+        path=str(file_path),
+        filename=download_name,
+        media_type=media_types.get(fmt, "application/octet-stream"),
+    )

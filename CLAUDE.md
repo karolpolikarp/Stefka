@@ -1,8 +1,8 @@
-# Juliusz - Lokalna Aplikacja do Transkrypcji i Strukturyzowania Notatek
+# Stefka - Lokalna Aplikacja do Transkrypcji i Strukturyzowania Notatek
 
 ## Kontekst i Cel
 
-Juliusz to lokalna aplikacja webowa inspirowana [TurboScribe.ai](https://turboscribe.ai), zaprojektowana z naciskiem na **bezpieczeństwo i prywatność danych**. Wszystkie modele AI działają lokalnie na MacBooku użytkownika — żadne dane nie opuszczają maszyny.
+Stefka to lokalna aplikacja webowa inspirowana [TurboScribe.ai](https://turboscribe.ai), zaprojektowana z naciskiem na **bezpieczeństwo i prywatność danych**. Wszystkie modele AI działają lokalnie na MacBooku użytkownika — żadne dane nie opuszczają maszyny.
 
 Aplikacja przyjmuje pliki audio lub tekstowe i przetwarza je na ustandaryzowane notatki przy użyciu lokalnych modeli AI:
 - **Whisper** (transkrypcja mowy na tekst)
@@ -164,7 +164,7 @@ Użytkownik pobiera plik z przeglądarki
 ## Struktura Projektu
 
 ```
-juliusz/
+stefka/
 ├── CLAUDE.md                     # Ten plik — dokumentacja projektu
 ├── requirements.txt              # Zależności Python
 ├── setup.sh                      # Skrypt instalacyjny (Ollama, modele, ffmpeg)

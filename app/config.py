@@ -9,7 +9,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Ollama / PLLuM
 OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "PRIHLOP/PLLuM:12b"
+OLLAMA_MODEL = "pllum-12b-instruct"
 
 # mlx-whisper
 WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
@@ -30,4 +30,4 @@ EXPORT_FORMATS = {"md", "pdf", "docx"}
 # Logowanie
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = LOG_DIR / "juliusz.log"
+LOG_FILE = LOG_DIR / "stefka.log"

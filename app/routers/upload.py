@@ -171,14 +171,22 @@ async def _process_audio(job_id: str, file_path: Path, export_format: str):
         )
         return
 
+    # Save transcription for debugging
+    debug_path = OUTPUT_DIR / f"{job_id}_transcription.txt"
+    debug_path.write_text(transcription, encoding="utf-8")
+    logger.info("Job %s: saved transcription to %s (%d chars)", job_id, debug_path.name, len(transcription))
+
     # Step 4: Structure with PLLuM
+    def on_llm_progress(message: str):
+        _update_job(job_id, status=JobStatus.STRUCTURING, progress=80, message=message)
+
     _update_job(
         job_id,
         status=JobStatus.STRUCTURING,
         progress=75,
         message="PLLuM strukturyzuje notatkę...",
     )
-    note = await structure_note(transcription)
+    note = await structure_note(transcription, on_progress=on_llm_progress)
 
     # Step 5: Export
     _update_job(
@@ -220,13 +228,16 @@ async def _process_text(job_id: str, file_path: Path, export_format: str):
         return
 
     # Step 2: Structure with PLLuM
+    def on_llm_progress(message: str):
+        _update_job(job_id, status=JobStatus.STRUCTURING, progress=50, message=message)
+
     _update_job(
         job_id,
         status=JobStatus.STRUCTURING,
         progress=30,
         message="PLLuM strukturyzuje notatkę...",
     )
-    note = await structure_note(text)
+    note = await structure_note(text, on_progress=on_llm_progress)
 
     # Step 3: Export
     _update_job(

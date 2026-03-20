@@ -39,7 +39,7 @@ def _setup_logging():
 _setup_logging()
 
 app = FastAPI(
-    title="Juliusz",
+    title="Stefka",
     description="Lokalna aplikacja do transkrypcji audio i strukturyzowania notatek",
     version="1.0.0",
 )

@@ -2,7 +2,7 @@
 set -e
 
 echo "========================================="
-echo "  Juliusz — Instalacja"
+echo "  Stefka — Instalacja"
 echo "========================================="
 echo ""
 
@@ -64,10 +64,21 @@ pip install -r requirements.txt -q
 
 echo -e "${GREEN}[OK]${NC} Zależności Python zainstalowane"
 
-# 6. Ollama — start & pull model
+# 6. llama.cpp (for GGUF conversion)
+if ! brew list llama.cpp &>/dev/null; then
+    echo -e "${YELLOW}Instaluję llama.cpp (konwersja modelu)...${NC}"
+    brew install llama.cpp
+fi
+echo -e "${GREEN}[OK]${NC} llama.cpp"
+
+# 7. Install conversion dependencies
+pip install transformers sentencepiece gguf -q
+echo -e "${GREEN}[OK]${NC} Zależności konwersji modelu"
+
+# 8. Ollama — start & download + convert official PLLuM model
 echo ""
-echo "Uruchamiam Ollama i pobieram model PLLuM-12B..."
-echo "(To może potrwać kilka minut przy pierwszym uruchomieniu)"
+echo "Uruchamiam Ollama i przygotowuję model PLLuM-12B..."
+echo "(Pierwsze uruchomienie: pobranie ~24GB + konwersja — może potrwać kilkanaście minut)"
 
 # Start Ollama in background if not running
 if ! pgrep -x "ollama" > /dev/null; then
@@ -75,7 +86,27 @@ if ! pgrep -x "ollama" > /dev/null; then
     sleep 3
 fi
 
-ollama pull PRIHLOP/PLLuM:12b
+GGUF_PATH="$(dirname "$0")/models/pllum-12b-nc-instruct-q8_0.gguf"
+MODELFILE="$(dirname "$0")/Modelfile.pllum"
+
+if ! ollama list | grep -q "pllum-12b-instruct"; then
+    echo "Pobieram oficjalny model CYFRAGOVPL/PLLuM-12B-nc-instruct..."
+    mkdir -p "$(dirname "$0")/models"
+    python3 -c "
+from huggingface_hub import snapshot_download
+snapshot_download('CYFRAGOVPL/PLLuM-12B-nc-instruct', local_dir='$(dirname "$0")/models/PLLuM-12B-nc-instruct')
+"
+    echo "Konwertuję model do GGUF Q8_0..."
+    CONVERT_SCRIPT="$(find /opt/homebrew/Cellar/llama.cpp -name 'convert_hf_to_gguf.py' | head -1)"
+    python3 "$CONVERT_SCRIPT" "$(dirname "$0")/models/PLLuM-12B-nc-instruct" \
+        --outtype q8_0 --outfile "$GGUF_PATH"
+
+    echo "Importuję model do Ollama..."
+    ollama create pllum-12b-instruct -f "$MODELFILE"
+
+    # Clean up safetensors (keep only GGUF)
+    rm -rf "$(dirname "$0")/models/PLLuM-12B-nc-instruct"
+fi
 
 echo -e "${GREEN}[OK]${NC} Model PLLuM-12B gotowy"
 

@@ -1,0 +1,10 @@
+FROM /Users/karol/stefka/models/pllum-12b-nc-instruct-q8_0.gguf
+
+TEMPLATE """{{- if .System }}[INST]{{ .System }}
+
+{{ .Prompt }}[/INST]
+{{- else }}[INST]{{ .Prompt }}[/INST]
+{{- end }}"""
+
+PARAMETER stop [INST]
+PARAMETER stop [/INST]

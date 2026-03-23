@@ -1,12 +1,12 @@
-# Stefka - Lokalna Aplikacja do Transkrypcji i Strukturyzowania Notatek
+# Stefka — Lokalna Aplikacja do Transkrypcji i Strukturyzowania Notatek
 
 ## Kontekst i Cel
 
-Stefka to lokalna aplikacja webowa inspirowana [TurboScribe.ai](https://turboscribe.ai), zaprojektowana z naciskiem na **bezpieczeństwo i prywatność danych**. Wszystkie modele AI działają lokalnie na MacBooku użytkownika — żadne dane nie opuszczają maszyny.
+Stefka to lokalna aplikacja webowa dla Ministerstwa Cyfryzacji, zaprojektowana z naciskiem na **bezpieczeństwo i prywatność danych**. Wszystkie modele AI działają lokalnie na MacBooku — żadne dane nie opuszczają maszyny.
 
-Aplikacja przyjmuje pliki audio lub tekstowe i przetwarza je na ustandaryzowane notatki przy użyciu lokalnych modeli AI:
-- **Whisper** (transkrypcja mowy na tekst)
-- **PLLuM** (polski model językowy do strukturyzowania treści)
+Aplikacja przyjmuje pliki audio lub tekstowe i przetwarza je na notatki służbowe:
+- **mlx-whisper** (transkrypcja mowy na tekst, natywnie Apple Silicon)
+- **PLLuM-12B** (oficjalny polski model językowy CYFRAGOVPL do strukturyzowania treści)
 
 ### Środowisko docelowe
 - **MacBook M4 Pro, 48GB RAM**
@@ -39,7 +39,7 @@ Aplikacja przyjmuje pliki audio lub tekstowe i przetwarza je na ustandaryzowane 
 │              │                            │                  │
 │  ┌───────────▼────────────────────────────┴─────────────┐  │
 │  │              Serwis LLM (Ollama / PLLuM)             │  │
-│  │              Strukturyzowanie notatki                  │  │
+│  │         Chunk-summarize + code assembly               │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                            │
@@ -47,75 +47,87 @@ Aplikacja przyjmuje pliki audio lub tekstowe i przetwarza je na ustandaryzowane 
 │                    Lokalne Modele AI                         │
 │  ┌─────────────────────┐  ┌─────────────────────────────┐  │
 │  │  mlx-whisper         │  │  Ollama                     │  │
-│  │  large-v3-turbo      │  │  PLLuM-12B-instruct         │  │
-│  │  (natywne Apple Si.) │  │  (GGUF, ~13GB)              │  │
+│  │  large-v3-turbo      │  │  pllum-12b-instruct         │  │
+│  │  (natywne Apple Si.) │  │  (GGUF Q8_0, ~13GB)         │  │
 │  └─────────────────────┘  └─────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Workflow
+## Pipeline LLM — chunk-summarize MVP
 
-### Workflow A: Plik Audio
+PLLuM-12B jest modelem 12B parametrów — za słabym na generowanie pełnych notatek jednym promptem. Zamiast tego stosujemy **dekompozycję**:
 
+### Podejście
+1. **Chunk** — tekst dzielony na fragmenty po ~6000 znaków z 400-znakowym overlapem
+2. **Summarize** — każdy chunk przetwarzany osobnym, krótkim promptem
+3. **Assemble** — nota składana kodem (Python), nie LLM-em — deterministyczna struktura
+
+### Prompt (celowo krótki — PLLuM lepiej reaguje na zwięzłe instrukcje)
 ```
-Użytkownik wchodzi na stronę (localhost:8000)
-        │
-        ▼
-Uploaduje plik audio (.mp3, .wav, .m4a, .flac, .ogg, .webm)
-+ opcjonalnie podaje email
-        │
-        ▼
-Backend waliduje plik (format, rozmiar)
-        │
-        ▼
-Audio jest konwertowane do formatu WAV 16kHz mono (ffmpeg)
-        │
-        ▼
-Audio jest dzielone na segmenty ~30s z 2s overlap (VAD-based)
-        │
-        ▼
-Każdy segment transkrybowany przez mlx-whisper (large-v3-turbo)
-        │
-        ▼
-Segmenty transkrypcji łączone w pełny tekst
-        │
-        ▼
-Tekst transkrypcji → PLLuM (Ollama) z promptem strukturyzującym
-        │
-        ▼
-PLLuM generuje ustandaryzowaną notatkę
-        │
-        ▼
-Notatka eksportowana do wybranego formatu (MD / PDF / DOCX)
-        │
-        ▼
-Użytkownik pobiera plik z przeglądarki
-(lub otrzymuje na email — funkcja planowana)
+Streść poniższy fragment spotkania w akapitach.
+Zachowaj imiona, nazwiska, daty, kwoty, nazwy.
+Nie anonimizuj. Nie pisz dialogu. Nie kopiuj surowego tekstu. Zacznij od treści.
 ```
 
-### Workflow B: Plik Tekstowy
+### Parametry Ollama
+| Parametr | Wartość | Uzasadnienie |
+|----------|---------|--------------|
+| temperature | 0.0 | Deterministyczny output — ten sam input = ta sama nota |
+| repeat_penalty | 1.1 | Niski — nie karze za powtarzanie struktur w listach |
+| num_ctx | 16384 | Wystarczający dla chunków 6K |
+| top_p | 0.7 | Mniej losowych tokenów |
+| num_predict | 4096 | Limit tokenów na chunk |
 
-```
-Użytkownik uploaduje plik tekstowy (.txt, .md, .docx, .pdf)
-+ opcjonalnie podaje email
-        │
-        ▼
-Backend waliduje i ekstrahuje tekst z pliku
-        │
-        ▼
-Tekst → PLLuM (Ollama) z promptem strukturyzującym
-        │
-        ▼
-PLLuM generuje ustandaryzowaną notatkę
-        │
-        ▼
-Notatka eksportowana do wybranego formatu (MD / PDF / DOCX)
-        │
-        ▼
-Użytkownik pobiera plik z przeglądarki
-```
+### Post-processing outputu PLLuM
+PLLuM-12B ma tendencję do:
+- **Anonimizacji** — zamienia imiona na `[Osoba 1]`, `[Imię]` (safety behavior modelu)
+- **Formatu dialogu** — kopiuje Q&A z transkrypcji zamiast streszczać
+- **Kopiowania surowego tekstu** — dosłownie przepisuje input
+- **Filler sentences** — "Podczas spotkania poruszono wiele tematów"
+- **Formatu listu** — "Dzień dobry", "Z poważaniem, [Podpis]"
+
+Post-processing w `_clean_response()`:
+1. Usuwanie tagów `[INST]`, `[/INST]`
+2. Usuwanie preambuł ("Poniżej znajduje się...")
+3. Usuwanie `[Osoba N]`, `[Imię]` i formatu dialogu
+4. Usuwanie artefaktów formatu listu
+5. Deduplikacja powtarzających się preambuł
+6. Usuwanie filler sentences
+7. Detekcja halucynowanych imion (dwuczłonowe nazwy nieobecne w transkrypcji)
+8. Detekcja raw copy (>60% overlap z inputem → odrzucenie)
+9. Scalanie osieroconych krótkich akapitów (<80 znaków)
+
+### Kluczowy wniosek z iteracji
+**Im krótszy prompt, tym lepszy output z PLLuM-12B.** Długie, złożone instrukcje są ignorowane. Model radzi sobie najlepiej z jednym prostym zdaniem per instrukcję.
+
+---
+
+## Transkrypcja (mlx-whisper)
+
+### Model
+- `mlx-community/whisper-large-v3-turbo` (~809M parametrów)
+- Zoptymalizowany pod Apple Silicon (MLX framework)
+- Na M4 Pro: ~10-15x szybciej niż real-time
+- Język: polski (`language="pl"`)
+
+### Parametry
+| Parametr | Wartość | Uzasadnienie |
+|----------|---------|--------------|
+| condition_on_previous_text | False | Zapobiega zapętlaniu na ciszy |
+| compression_ratio_threshold | 2.0 | Wykrywanie zdegenerowanego outputu |
+| no_speech_threshold | 0.5 | Odrzucanie segmentów bez mowy |
+
+### Chunking audio
+- Segmenty ~30s z 2s overlap (ffmpeg)
+- Overlap deduplication: exact match + fuzzy (SequenceMatcher)
+
+### Post-processing transkrypcji
+- 20+ wzorców halucynacji Whisper (polskojęzyczne): "Dziękuję za oglądanie", "Dzięki za oglądanie", "Napisy stworzone przez społeczność", "Subskrybuj", "[muzyka]", itp.
+- Per-chunk filtering (halucynacje usuwane zanim trafią do łączenia)
+- Kolapsowanie powtórzonych słów i fraz
+- Normalizacja interpunkcji (brakujące spacje, podwójne kropki)
 
 ---
 
@@ -123,34 +135,22 @@ Użytkownik pobiera plik z przeglądarki
 
 | Komponent | Technologia | Uzasadnienie |
 |-----------|-------------|--------------|
-| **Backend** | Python 3.11+ / FastAPI | Szybki, async, WebSocket/SSE support |
-| **Transkrypcja** | mlx-whisper (large-v3-turbo) | Natywna optymalizacja Apple Silicon, 30-40% szybszy niż whisper.cpp |
-| **LLM** | Ollama + PLLuM-12B-instruct | Łatwy deployment, 128K context window, ~13GB VRAM |
-| **Audio processing** | pydub + ffmpeg | Konwersja formatów, chunking |
-| **Frontend** | Vanilla HTML/CSS/JS + Jinja2 | Prostota, zero zależności frontendowych |
-| **Eksport MD** | Natywny string | Bez zależności |
-| **Eksport PDF** | weasyprint | Konwersja HTML/CSS → PDF |
-| **Eksport DOCX** | python-docx | Generowanie dokumentów Word |
-| **Ekstrakcja tekstu** | python-docx, PyPDF2 | Odczyt uploadowanych plików tekstowych |
-| **Task queue** | asyncio + background tasks | Przetwarzanie w tle z raportowaniem postępu |
+| **Backend** | Python 3.11+ / FastAPI | Szybki, async, SSE support |
+| **Transkrypcja** | mlx-whisper (large-v3-turbo) | Natywna optymalizacja Apple Silicon |
+| **LLM** | Ollama + PLLuM-12B-instruct | Oficjalny model CYFRAGOVPL, GGUF Q8_0 |
+| **Audio** | ffmpeg | Konwersja formatów, chunking |
+| **Frontend** | Vanilla HTML/CSS/JS + Jinja2 | Zero zależności, glassmorphism 2026 |
+| **Eksport** | weasyprint (PDF), python-docx (DOCX) | Generowanie dokumentów |
+| **Ekstrakcja tekstu** | python-docx, PyPDF2 | Odczyt uploadowanych plików |
 
-### Dobór modeli AI
+### Model PLLuM — setup
+- Oficjalny: `CYFRAGOVPL/PLLuM-12B-nc-instruct` z HuggingFace
+- Konwersja: `convert_hf_to_gguf.py` (llama.cpp) → Q8_0 GGUF
+- Import: `ollama create pllum-12b-instruct -f Modelfile.pllum`
+- Modelfile: template `[INST]...[/INST]` (Mistral-Nemo chat format)
+- **NIE** używać community `PRIHLOP/PLLuM:12b` — brak chat template
 
-**Transkrypcja: mlx-whisper z modelem large-v3-turbo**
-- Model: `mlx-community/whisper-large-v3-turbo` (~809M parametrów)
-- Zoptymalizowany pod Apple Silicon (MLX framework)
-- Na M4 Pro: ~10-15x szybciej niż real-time
-- Dokładność porównywalna z large-v3, 6x szybszy
-- Obsługuje 98+ języków, w tym polski
-
-**LLM: PLLuM-12B-instruct via Ollama**
-- Model: `PRIHLOP/PLLuM:12b` (~13GB)
-- Specjalizowany w języku polskim (150B tokenów polskich)
-- 128K token context window
-- Instruction-tuned — idealny do zadań strukturyzowania
-- Przy 48GB RAM: komfortowe działanie z zapasem na Whisper
-
-### Wymagania sprzętowe (estymacja dla M4 Pro 48GB)
+### Wymagania sprzętowe (M4 Pro 48GB)
 
 | Model | RAM/VRAM | Uwagi |
 |-------|----------|-------|
@@ -165,54 +165,46 @@ Użytkownik pobiera plik z przeglądarki
 
 ```
 stefka/
-├── CLAUDE.md                     # Ten plik — dokumentacja projektu
+├── CLAUDE.md                     # Ten plik — instrukcje dla AI
+├── README.md                     # Dokumentacja projektu
 ├── requirements.txt              # Zależności Python
-├── setup.sh                      # Skrypt instalacyjny (Ollama, modele, ffmpeg)
+├── Modelfile.pllum               # Ollama Modelfile dla PLLuM
+├── setup.sh                      # Skrypt instalacyjny
 ├── run.sh                        # Skrypt uruchomieniowy
 │
 ├── app/
 │   ├── __init__.py
-│   ├── main.py                   # FastAPI — punkt wejścia, montowanie routerów
-│   ├── config.py                 # Konfiguracja (ścieżki, modele, porty)
+│   ├── main.py                   # FastAPI — punkt wejścia, health check
+│   ├── config.py                 # Konfiguracja (ścieżki, modele, limity)
 │   │
 │   ├── routers/
-│   │   ├── __init__.py
-│   │   ├── upload.py             # POST /api/upload — przyjmowanie plików
+│   │   ├── upload.py             # POST /api/upload + background processing
 │   │   ├── status.py             # GET /api/status/{job_id} — SSE progress
-│   │   └── download.py           # GET /api/download/{job_id} — pobieranie notatki
+│   │   └── download.py           # GET /api/download/{job_id}
 │   │
 │   ├── services/
-│   │   ├── __init__.py
-│   │   ├── transcription.py      # Transkrypcja audio via mlx-whisper
-│   │   ├── audio_processing.py   # Konwersja audio, chunking, VAD
-│   │   ├── text_extraction.py    # Ekstrakcja tekstu z DOCX/PDF/TXT/MD
-│   │   ├── llm.py                # Integracja z Ollama/PLLuM
-│   │   ├── note_formatter.py     # Prompt engineering + formatowanie notatki
-│   │   └── export.py             # Eksport do MD/PDF/DOCX
+│   │   ├── transcription.py      # mlx-whisper + post-processing halucynacji
+│   │   ├── audio_processing.py   # ffmpeg: konwersja, chunking
+│   │   ├── text_extraction.py    # DOCX/PDF/TXT/MD → tekst
+│   │   ├── llm.py                # Chunk-summarize pipeline + Ollama client
+│   │   └── export.py             # MD/PDF/DOCX eksport
 │   │
 │   ├── models/
-│   │   ├── __init__.py
-│   │   └── schemas.py            # Pydantic modele (UploadRequest, JobStatus, etc.)
+│   │   └── schemas.py            # Pydantic: JobInfo, ExportFormat, etc.
 │   │
 │   ├── templates/
-│   │   └── index.html            # Główna strona — upload + progress + download
+│   │   └── index.html            # Główna strona (glassmorphism 2026)
 │   │
 │   └── static/
-│       ├── css/
-│       │   └── style.css         # Style aplikacji
-│       └── js/
-│           └── app.js            # Logika frontendu (upload, SSE, download)
+│       ├── css/style.css         # Design system MC
+│       └── js/app.js             # Upload, SSE, download logic
 │
 ├── data/
-│   ├── uploads/                  # Tymczasowe pliki uploadowane (czyszczone po przetworzeniu)
-│   └── outputs/                  # Wygenerowane notatki (czyszczone okresowo)
+│   ├── uploads/                  # Tymczasowe (czyszczone po przetworzeniu)
+│   └── outputs/                  # Notatki + transkrypcje (TTL 24h)
 │
-└── tests/
-    ├── __init__.py
-    ├── test_transcription.py
-    ├── test_llm.py
-    ├── test_export.py
-    └── test_api.py
+├── models/                       # GGUF modelu PLLuM (po setup.sh)
+└── logs/                         # Logi aplikacji (rotacja 5MB x 3)
 ```
 
 ---
@@ -220,142 +212,39 @@ stefka/
 ## Kluczowe Decyzje Projektowe
 
 ### 1. Bezpieczeństwo danych (priorytet #1)
-- **Zero komunikacji z zewnętrznymi API** — wszystkie modele lokalne
-- Pliki tymczasowe usuwane po przetworzeniu
+- Zero komunikacji z zewnętrznymi API
+- Pliki tymczasowe usuwane po przetworzeniu (uploads) i po 24h (outputs)
 - Brak logowania treści przetwarzanych plików
 - Aplikacja dostępna tylko z localhost
+- Walidacja path traversal w download endpoint
+- Health check Ollama przed przyjęciem pliku (503 jeśli niedostępna)
 
-### 2. mlx-whisper zamiast faster-whisper
-- faster-whisper (CTranslate2) **nie obsługuje GPU na Apple Silicon** — fallback na CPU
-- mlx-whisper natywnie wykorzystuje GPU M4 Pro — **30-40% szybszy**
-- Prostsze API, mniej zależności
+### 2. Chunk-summarize zamiast single-prompt
+- PLLuM-12B nie daje rady z jednym promptem na długi tekst (>8K znaków)
+- Produkuje krótki, halucynacyjny, niedeterministyczny output
+- Rozwiązanie: chunki po 6K → prosty prompt per chunk → składanie kodem
+- temperature=0 zapewnia powtarzalność
 
-### 3. Ollama jako runtime dla PLLuM
-- Zarządza pamięcią modelu automatycznie
-- Obsługuje quantyzację GGUF
-- Prosty HTTP API (localhost:11434)
-- Łatwy setup: `ollama pull PRIHLOP/PLLuM:12b`
+### 3. Post-processing zamiast prompt engineering
+- PLLuM-12B ignoruje złożone instrukcje
+- Zamiast walczyć z modelem w prompcie, czyścimy output kodem
+- Detekcja i usuwanie: anonimizacji, dialogu, raw copy, fillera, halucynowanych imion
 
-### 4. SSE zamiast WebSocket do raportowania postępu
-- Prostsze w implementacji (jednostronna komunikacja)
+### 4. Oficjalny PLLuM z CYFRAGOVPL
+- Model: `CYFRAGOVPL/PLLuM-12B-nc-instruct` (HuggingFace)
+- Konwersja do GGUF Q8_0 przez llama.cpp
+- Importowany do Ollama z własnym Modelfile (template [INST])
+- Community model `PRIHLOP/PLLuM:12b` nie nadawał się (brak chat template)
+
+### 5. SSE do raportowania postępu
+- Prostsze niż WebSocket (jednostronna komunikacja)
 - Natywne wsparcie w przeglądarkach (EventSource API)
-- Wystarczające dla naszego use case (serwer → klient)
+- Fallback na polling jeśli SSE się zerwie
 
-### 5. Background tasks zamiast Celery
-- Brak potrzeby Redis/RabbitMQ — mniejsza złożoność
-- asyncio + FastAPI BackgroundTasks wystarczają
-- Jeden użytkownik na raz — nie potrzebujemy kolejki zadań
-
----
-
-## Prompt PLLuM — Strukturyzowanie Notatki
-
-```
-Jesteś asystentem specjalizującym się w tworzeniu ustandaryzowanych notatek.
-Na podstawie poniższego tekstu stwórz strukturalną notatkę w następującym formacie:
-
-## Tytuł
-[Automatycznie wygenerowany tytuł na podstawie treści]
-
-## Data
-[Data przetworzenia]
-
-## Podsumowanie
-[2-3 zdania podsumowujące kluczowe punkty]
-
-## Kluczowe Punkty
-- [Punkt 1]
-- [Punkt 2]
-- [...]
-
-## Szczegółowa Treść
-[Pełna, uporządkowana treść z zachowaniem struktury logicznej.
-Podzielona na sekcje tematyczne jeśli to uzasadnione.]
-
-## Wnioski / Następne Kroki
-[Jeśli wynikają z treści — wnioski, rekomendacje lub dalsze kroki]
-
----
-
-Tekst źródłowy:
-{transcription_or_text}
-```
-
----
-
-## Zależności (requirements.txt)
-
-```
-# Backend
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
-python-multipart>=0.0.12
-jinja2>=3.1.4
-aiofiles>=24.1.0
-
-# Transkrypcja
-mlx-whisper>=0.4.0
-
-# Audio processing
-pydub>=0.25.1
-
-# LLM
-httpx>=0.27.0
-
-# Eksport
-python-docx>=1.1.0
-weasyprint>=62.0
-markdown>=3.7
-
-# Ekstrakcja tekstu
-PyPDF2>=3.0.0
-
-# Utilities
-uuid6>=2024.7.10
-```
-
----
-
-## Setup i Uruchomienie
-
-### Wymagania wstępne
-- macOS z Apple Silicon (M1/M2/M3/M4)
-- Python 3.11+
-- Homebrew
-
-### Instalacja
-
-```bash
-# 1. Zainstaluj zależności systemowe
-brew install ffmpeg ollama
-
-# 2. Uruchom Ollama i pobierz model PLLuM
-ollama serve &
-ollama pull PRIHLOP/PLLuM:12b
-
-# 3. Utwórz środowisko Python
-python3 -m venv .venv
-source .venv/bin/activate
-
-# 4. Zainstaluj zależności Python
-pip install -r requirements.txt
-
-# 5. Uruchom aplikację
-uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-### Uruchomienie (po instalacji)
-
-```bash
-# Terminal 1: Ollama (jeśli nie działa jako daemon)
-ollama serve
-
-# Terminal 2: Aplikacja
-source .venv/bin/activate
-uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-Aplikacja dostępna pod: **http://localhost:8000**
+### 6. Jobs cleanup
+- In-memory job store z TTL (1h dla jobów, 24h dla plików output)
+- Cleanup triggerowany przy każdym nowym uploadzie
+- Double-submit guard w frontend (isSubmitting flag)
 
 ---
 
@@ -369,16 +258,45 @@ Aplikacja dostępna pod: **http://localhost:8000**
 | Tekst | .txt, .md, .docx, .pdf |
 
 ### Formaty wyjściowe notatek
-- **Markdown** (.md) — lekki, czytelny
-- **PDF** (.pdf) — gotowy do druku
-- **DOCX** (.docx) — edytowalny w Word
+- **Markdown** (.md)
+- **PDF** (.pdf) — weasyprint
+- **DOCX** (.docx) — python-docx z obsługą tabel i pogrubień
 
 ---
 
-## Planowane rozszerzenia (v2)
+## Setup i Uruchomienie
+
+### Wymagania wstępne
+- macOS z Apple Silicon (M1/M2/M3/M4)
+- Python 3.11+
+- Homebrew
+
+### Instalacja
+```bash
+./setup.sh    # Instaluje ffmpeg, Ollama, pango, pobiera i konwertuje PLLuM
+```
+
+### Uruchomienie
+```bash
+./run.sh      # Startuje Ollama (jeśli nie działa) + uvicorn
+```
+
+Aplikacja dostępna pod: **http://localhost:8000**
+
+---
+
+## Znane ograniczenia PLLuM-12B
+
+1. **Anonimizacja** — model ma tendencję do zamieniania imion na `[Osoba]` (safety behavior). Częściowo łapane przez post-processing, ale nie w 100%.
+2. **Halucynacje** — przy dłuższych inputach wymyśla fakty, imiona, nazwy projektów. Chunk-summarize minimalizuje ten problem.
+3. **Niestabilna jakość** — różne chunki tego samego spotkania mogą dać różną jakość outputu. temperature=0 zapewnia powtarzalność, ale nie gwarantuje jakości.
+4. **Brak tematycznego grupowania** — model nie potrafi niezawodnie grupować wątków tematycznie. Nota jest chronologiczna (chunk po chunku).
+5. **Krótki prompt = lepszy output** — długie, złożone instrukcje są ignorowane.
+
+## Planowane rozszerzenia
 - Wysyłka notatki na email (SMTP)
 - Detekcja mówców (speaker diarization)
 - Historia przetworzonych plików
-- Redukcja szumu audio
 - Batch processing (wiele plików naraz)
 - Wybór języka transkrypcji
+- Lepszy model LLM (gdy dostępny większy polski model lokalny)

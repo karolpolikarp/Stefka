@@ -16,6 +16,10 @@ async def download_note(job_id: str, fmt: str | None = None):
 
     If fmt is not specified, uses the format chosen during upload.
     """
+    # Validate job_id format (alphanumeric, max 12 chars)
+    if not job_id.isalnum() or len(job_id) > 12:
+        raise HTTPException(status_code=400, detail="Nieprawidłowy identyfikator.")
+
     job = jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job nie znaleziony.")
@@ -30,7 +34,9 @@ async def download_note(job_id: str, fmt: str | None = None):
             detail=f"Nieobsługiwany format: {fmt}. Dozwolone: {', '.join(EXPORT_FORMATS)}",
         )
 
-    file_path = OUTPUT_DIR / f"{job_id}_notatka.{fmt}"
+    file_path = (OUTPUT_DIR / f"{job_id}_notatka.{fmt}").resolve()
+    if not file_path.is_relative_to(OUTPUT_DIR.resolve()):
+        raise HTTPException(status_code=400, detail="Nieprawidłowa ścieżka pliku.")
     if not file_path.exists():
         raise HTTPException(
             status_code=404,

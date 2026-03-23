@@ -30,6 +30,7 @@ const resultFormat = document.getElementById("result-format");
 
 let selectedFile = null;
 let currentJobId = null;
+let isSubmitting = false;
 
 const MAX_POLL_ATTEMPTS = 300;
 
@@ -97,7 +98,9 @@ function formatSize(bytes) {
 
 uploadForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!selectedFile) return;
+    if (!selectedFile || isSubmitting) return;
+
+    isSubmitting = true;
 
     const formData = new FormData();
     formData.append("file", selectedFile);
@@ -125,6 +128,7 @@ uploadForm.addEventListener("submit", async (e) => {
         currentJobId = data.job_id;
         startSSE(currentJobId);
     } catch (err) {
+        isSubmitting = false;
         showError(err.message);
     }
 });
@@ -241,6 +245,7 @@ function showError(msg) {
 
 function reset() {
     currentJobId = null;
+    isSubmitting = false;
     clearFile();
     progressFill.style.width = "0%";
     progressPercent.textContent = "0%";

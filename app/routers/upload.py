@@ -2,6 +2,7 @@ import asyncio
 import logging
 import shutil
 import tempfile
+import time
 import uuid
 from pathlib import Path
 
@@ -24,7 +25,7 @@ from app.models.schemas import (
 )
 from app.services.audio_processing import chunk_audio, convert_to_wav_16k
 from app.services.export import export_note
-from app.services.llm import structure_note
+from app.services.llm import check_ollama_health, structure_note
 from app.services.text_extraction import extract_text
 from app.services.transcription import transcribe_chunks
 
@@ -32,8 +33,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
-# In-memory job store
+# In-memory job store with timestamps for cleanup
 jobs: dict[str, JobInfo] = {}
+_job_timestamps: dict[str, float] = {}
+
+JOB_TTL_SECONDS = 3600  # clean up jobs older than 1 hour
+OUTPUT_TTL_SECONDS = 86400  # clean up output files older than 24 hours
 
 
 def _update_job(job_id: str, **kwargs):
@@ -42,12 +47,51 @@ def _update_job(job_id: str, **kwargs):
             setattr(jobs[job_id], k, v)
 
 
+def _cleanup_old_jobs():
+    """Remove completed/failed jobs older than TTL."""
+    now = time.time()
+    expired = [
+        jid for jid, ts in _job_timestamps.items()
+        if now - ts > JOB_TTL_SECONDS and jid in jobs
+        and jobs[jid].status in (JobStatus.COMPLETED, JobStatus.FAILED)
+    ]
+    for jid in expired:
+        jobs.pop(jid, None)
+        _job_timestamps.pop(jid, None)
+    if expired:
+        logger.info("Cleaned up %d expired jobs", len(expired))
+
+
+def _cleanup_old_outputs():
+    """Remove output files older than TTL."""
+    now = time.time()
+    removed = 0
+    for f in OUTPUT_DIR.iterdir():
+        if f.is_file() and now - f.stat().st_mtime > OUTPUT_TTL_SECONDS:
+            f.unlink()
+            removed += 1
+    if removed:
+        logger.info("Cleaned up %d old output files", removed)
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
     export_format: ExportFormat = Form(ExportFormat.MD),
     email: str = Form(""),
 ):
+    # Periodic cleanup on each upload
+    _cleanup_old_jobs()
+    _cleanup_old_outputs()
+
+    # Check Ollama health before accepting file
+    if not await check_ollama_health():
+        raise HTTPException(
+            status_code=503,
+            detail="Ollama nie jest dostępna lub model PLLuM nie jest załadowany. "
+            "Uruchom: ollama serve && ollama pull pllum-12b-instruct",
+        )
+
     # Validate extension
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -69,6 +113,7 @@ async def upload_file(
     job_id = uuid.uuid4().hex[:12]
     file_type = FileType.AUDIO if suffix in AUDIO_EXTENSIONS else FileType.TEXT
 
+    _job_timestamps[job_id] = time.time()
     jobs[job_id] = JobInfo(
         job_id=job_id,
         status=JobStatus.PENDING,

@@ -1,5 +1,7 @@
 import logging
 import re
+from collections import Counter
+from datetime import date
 
 import httpx
 
@@ -7,272 +9,344 @@ from app.config import OLLAMA_BASE_URL, OLLAMA_MODEL
 
 logger = logging.getLogger(__name__)
 
-NOTE_SYSTEM_PROMPT = """\
-Jesteś asystentem Ministerstwa Cyfryzacji, który przetwarza transkrypcje spotkań w ustandaryzowane notatki służbowe. Tworzysz dokumenty przeznaczone do użytku wewnętrznego na szczeblu ministerialnym.
+MAX_RETRIES = 1
+CHUNK_SIZE = 6000
+CHUNK_OVERLAP = 400
 
-## STRUKTURA NOTATKI
-
-Każda notatka ma następujący układ. Sekcje, które nie mają pokrycia w transkrypcji, pomiń bez komentarza.
-
-### 1. METRYCZKA
-
-Na początku notatki umieść tabelę z danymi podstawowymi:
-- Data spotkania (jeśli wynika z transkrypcji lub nazwy pliku)
-- Forma (stacjonarne / online / hybrydowe)
-- Uczestnicy (imiona, nazwiska, funkcje, instytucje — tylko te, które faktycznie padają w transkrypcji)
-- Temat główny (jedno zdanie)
-
-### 2. STRESZCZENIE WYKONAWCZE
-
-Krótki akapit (3–5 zdań) z najważniejszymi ustaleniami i wnioskami. Czytelnik po samym streszczeniu powinien wiedzieć, o czym było spotkanie i co z niego wynika. Nie powtarzaj tu szczegółów, które rozwijasz niżej.
-
-### 3. SEKCJE TEMATYCZNE
-
-Podziel treść spotkania na logiczne bloki tematyczne. Każdy blok to osobna sekcja z nagłówkiem. Nie kopiuj chronologicznego porządku rozmowy — grupuj wątki, które dotyczą tego samego tematu, nawet jeśli pojawiały się w różnych momentach.
-
-Każda sekcja zawiera:
-- Opis stanu faktycznego (co ustalono, co powiedziano)
-- Konkretne dane: kwoty, terminy, nazwy instytucji, numery artykułów, nazwy projektów
-- Cytaty w cudzysłowie — tylko gdy wypowiedź jest na tyle istotna, że jej sens zmienia się przy parafrazie. Zawsze z atrybucją (kto powiedział). Nie nadużywaj cytatów.
-
-### 4. USTALENIA I DALSZE KROKI
-
-Lista konkretnych ustaleń podjętych podczas spotkania. Każde ustalenie powinno zawierać:
-- Co ma zostać zrobione
-- Kto jest odpowiedzialny (jeśli wynika z transkrypcji)
-- Termin (jeśli padł)
-
-### 5. PYTANIA OTWARTE / DO WYJAŚNIENIA
-
-Kwestie, które zostały poruszone, ale nie rozstrzygnięte. Tematy wymagające dalszej analizy lub decyzji.
-
----
-
-## ZASADY REDAKCYJNE
-
-### Język i styl
-- Pisz po polsku, poprawną polszczyzną.
-- Ton profesjonalny, rzeczowy, bez emocji i wartościowania.
-- Unikaj konstrukcji potocznych, kolokwializmów i żargonu korporacyjnego.
-- Nie używaj zwrotów typu „warto zauważyć", „co istotne", „należy podkreślić" — po prostu podaj informację.
-- Nie używaj pauzy (—) ani dwukropka jako elementu stylistycznego.
-- Zdania krótkie i jednoznaczne. Jedno zdanie = jedna informacja.
-
-### Formatowanie
-- Nagłówki sekcji tematycznych powinny być opisowe (np. „Budżet projektu OCEAR" zamiast „Punkt 3").
-- Punkty w listach (ustalenia, kroki) powinny być pełnymi zdaniami, nie hasłami.
-- Nie nadużywaj pogrubień. Pogrubiaj wyłącznie: nazwiska przy pierwszym wystąpieniu, kwoty, terminy, nazwy kluczowych projektów lub aktów prawnych.
-
-### Rzetelność i precyzja
-- Opieraj się WYŁĄCZNIE na tym, co jest w transkrypcji. Nie dodawaj wiedzy zewnętrznej, kontekstu, wyjaśnień ani interpretacji.
-- Jeśli transkrypcja jest niejasna lub urwana, napisz wprost, że dany fragment jest nieczytelny — nie próbuj domyślać się treści.
-- Nie spekuluj, nie wnioskuj, nie generalizuj ponad to, co zostało powiedziane.
-- Jeśli ktoś wyraził opinię, zaznacz że to opinia konkretnej osoby, a nie ustalony fakt.
-- Nazwy własne instytucji, projektów i aktów prawnych podawaj w pełnej formie przy pierwszym użyciu, potem możesz stosować skróty.
-
-### Czego NIE robić
-- Nie pisz wstępów typu „Poniżej przedstawiam notatkę z...".
-- Nie pisz zakończeń typu „Notatka sporządzona na podstawie...".
-- Nie komentuj jakości transkrypcji.
-- Nie dodawaj rekomendacji, chyba że ktoś na spotkaniu je sformułował — wtedy podaj je jako rekomendację tej osoby.
-- Nie powtarzaj tych samych informacji w różnych sekcjach.
-- Nie używaj emoji, ozdobników, nagłówków w CAPSLOCK.
-
-### Transkrypcje anglojęzyczne
-Jeśli spotkanie było prowadzone po angielsku, notatka i tak jest po polsku. Cytaty z wypowiedzi anglojęzycznych uczestników podawaj w oryginale (po angielsku), w cudzysłowie, z polskim kontekstem wokół."""
-
-CHUNK_NOTE_PROMPT = """\
-Jesteś asystentem Ministerstwa Cyfryzacji. Poniżej znajduje się fragment transkrypcji spotkania \
-(część {part_num} z {total_parts}). Na podstawie tego fragmentu stwórz częściową notatkę służbową \
-w formacie Markdown. Uwzględnij WSZYSTKIE omawiane tematy i szczegóły.
-
-Dla każdego tematu poruszanego w tym fragmencie napisz osobną sekcję z nagłówkiem (###). \
-W każdej sekcji uwzględnij: kto co powiedział, konkretne dane (kwoty, terminy, nazwy), \
-ustalenia i zadania do wykonania.
-
-Zachowaj pełne nazwiska z funkcjami. Pisz po polsku, profesjonalnie. \
-Nie dodawaj informacji spoza transkrypcji."""
-
-MERGE_NOTES_PROMPT = """\
-Jesteś asystentem Ministerstwa Cyfryzacji. Poniżej znajdują się częściowe notatki z kolejnych \
-fragmentów tego samego spotkania. Połącz je w jedną spójną notatkę służbową w formacie Markdown.
-
-Struktura wynikowej notatki:
-### 1. METRYCZKA (tabela: data, forma, uczestnicy zebrani ze wszystkich części, temat główny)
-### 2. STRESZCZENIE WYKONAWCZE (3-5 zdań z najważniejszymi ustaleniami)
-### 3. SEKCJE TEMATYCZNE (osobna sekcja z nagłówkiem ### dla każdego tematu)
-### 4. USTALENIA I DALSZE KROKI (lista: co, kto, kiedy — zebrane ze wszystkich części)
-### 5. PYTANIA OTWARTE / DO WYJAŚNIENIA
-
-Zasady:
-- Grupuj wątki dotyczące tego samego tematu z różnych części w jedną sekcję.
-- NIE powtarzaj informacji. Jeśli ten sam fakt pojawia się w kilku częściach, napisz go raz.
-- Zachowaj WSZYSTKIE konkretne szczegóły: nazwiska, kwoty, terminy, nazwy projektów, artykuły prawne.
-- Pisz po polsku, profesjonalnie. Nie dodawaj wstępów ani zakończeń. Zacznij od ### 1. METRYCZKA."""
-
-# PLLuM-12B degrades on inputs longer than ~18K chars.
-MAX_DIRECT_CHARS = 18000
-CHUNK_SIZE = 15000
+SUMMARIZE_PROMPT = """\
+Streść poniższy fragment spotkania w akapitach. \
+Zachowaj imiona, nazwiska, daty, kwoty, nazwy. \
+Nie anonimizuj. Nie pisz dialogu. Nie kopiuj surowego tekstu. Zacznij od treści."""
 
 
 async def structure_note(text: str, on_progress=None) -> str:
-    """Send text to PLLuM via Ollama and get a structured note back.
+    """Process text into a structured note.
 
-    Args:
-        text: Transcription or extracted text to structure.
-        on_progress: Optional callback(message) for progress reporting.
+    MVP approach: chunk → summarize each → assemble in code.
+    No LLM merge step. No fancy parsing. Just simple summaries.
     """
-    if len(text) <= MAX_DIRECT_CHARS:
-        if on_progress:
-            on_progress("PLLuM strukturyzuje notatkę...")
-        logger.info("Sending text to PLLuM for structuring (%d chars)", len(text))
-        raw = await _call_ollama(NOTE_SYSTEM_PROMPT, text, num_predict=4096)
-        logger.info("PLLuM raw response (%d chars): %s", len(raw), raw[:500])
-        cleaned = _clean_note_output(raw)
-        logger.info("PLLuM response: %d chars raw -> %d chars cleaned", len(raw), len(cleaned))
-        return cleaned
+    chunks = _split_into_chunks(text, CHUNK_SIZE)
+    total = len(chunks)
+    logger.info("Processing %d chars in %d chunks", len(text), total)
 
-    # Map-reduce for long texts
-    logger.info("Text too long (%d chars), using map-reduce", len(text))
-    partial_notes = await _map_chunks_to_notes(text, on_progress)
-    merged = await _reduce_notes(partial_notes, on_progress)
-    cleaned = _clean_note_output(merged)
-    logger.info("Map-reduce complete: %d chars input -> %d chars output", len(text), len(cleaned))
-    return cleaned
+    # Merge small last chunk into previous one
+    if len(chunks) > 1 and len(chunks[-1]) < CHUNK_SIZE * 0.4:
+        chunks[-2] = chunks[-2] + " " + chunks[-1]
+        chunks.pop()
+        total = len(chunks)
+        logger.info("Merged small last chunk, now %d chunks", total)
+
+    summaries = []
+    for i, chunk in enumerate(chunks):
+        if on_progress:
+            on_progress(f"PLLuM analizuje fragment {i + 1}/{total}...")
+        logger.info("Summarizing chunk %d/%d (%d chars)", i + 1, total, len(chunk))
+
+        summary = await _call_ollama(SUMMARIZE_PROMPT, chunk)
+        summary = _clean_response(summary, input_text=chunk)
+        logger.info("Chunk %d summary: %d chars", i + 1, len(summary))
+
+        if summary:
+            summaries.append(summary)
+
+    if not summaries:
+        return "_Nie udało się przetworzyć transkrypcji._"
+
+    note = _assemble_note(summaries)
+    logger.info("Note assembled: %d chars from %d chunk summaries", len(note), len(summaries))
+    return note
 
 
 def _split_into_chunks(text: str, max_size: int) -> list[str]:
-    """Split text into chunks at sentence boundaries."""
+    """Split text at sentence boundaries with overlap."""
+    if len(text) <= max_size:
+        return [text]
+
     chunks = []
-    while len(text) > max_size:
-        # Find last sentence end (. ! ?) before max_size
-        cut = max_size
+    pos = 0
+    while pos < len(text):
+        end = pos + max_size
+        if end >= len(text):
+            chunks.append(text[pos:].strip())
+            break
+
+        cut = end
         for sep in ['. ', '? ', '! ']:
-            pos = text.rfind(sep, 0, max_size)
-            if pos > max_size * 0.5:  # Don't cut too early
-                cut = pos + len(sep)
+            found = text.rfind(sep, pos, end)
+            if found > pos + max_size * 0.3:
+                cut = found + len(sep)
                 break
-        chunks.append(text[:cut].strip())
-        text = text[cut:].strip()
-    if text:
-        chunks.append(text)
+
+        chunks.append(text[pos:cut].strip())
+        pos = max(cut - CHUNK_OVERLAP, pos + 1)
+
     return chunks
 
 
-async def _map_chunks_to_notes(text: str, on_progress=None) -> list[str]:
-    """MAP phase: generate a partial note from each chunk."""
-    chunks = _split_into_chunks(text, CHUNK_SIZE)
-    total = len(chunks)
-    logger.info("MAP phase: generating notes for %d chunks", total)
-    notes = []
-    for i, chunk in enumerate(chunks):
-        if on_progress:
-            on_progress(f"PLLuM analizuje część {i + 1}/{total}...")
-        prompt = CHUNK_NOTE_PROMPT.format(part_num=i + 1, total_parts=total)
-        logger.info("MAP chunk %d/%d (%d chars)", i + 1, total, len(chunk))
-        note = await _call_ollama(prompt, chunk, num_predict=4096)
-        notes.append(note.strip())
-        logger.info("MAP chunk %d result: %d chars", i + 1, len(note))
-    return notes
+def _assemble_note(summaries: list[str]) -> str:
+    """Assemble final note from chunk summaries. Pure code, no LLM."""
+    today = date.today().strftime("%Y-%m-%d")
+    parts = []
+
+    parts.append(f"## NOTATKA SŁUŻBOWA\n\n**Data przetworzenia:** {today}")
+
+    # Join all summaries as continuous content, separated by blank lines
+    content = '\n\n'.join(summaries)
+
+    # Collapse short single-sentence paragraphs into previous paragraph
+    content = _collapse_short_paragraphs(content)
+
+    parts.append(content)
+
+    return '\n\n---\n\n'.join(parts)
 
 
-async def _reduce_notes(partial_notes: list[str], on_progress=None) -> str:
-    """REDUCE phase: merge partial notes into one final note."""
-    combined_input = ""
-    for i, note in enumerate(partial_notes):
-        combined_input += f"\n\n--- CZĘŚĆ {i + 1} ---\n\n{note}"
+def _collapse_short_paragraphs(text: str) -> str:
+    """Merge orphan paragraphs (1 short sentence) into the preceding paragraph.
 
-    if on_progress:
-        on_progress("PLLuM scala notatki w całość...")
-    logger.info("REDUCE phase: merging %d partial notes (%d chars total)",
-                len(partial_notes), len(combined_input))
+    A paragraph qualifies as "short orphan" when it:
+    - is a single sentence (no sentence-ending punctuation except at the very end)
+    - is at most 80 characters long
+    - is not a heading (doesn't start with #)
+    - is not a list item (doesn't start with - or *)
+    """
+    paragraphs = text.split('\n\n')
+    if len(paragraphs) <= 1:
+        return text
 
-    # If merged input fits in context, do single reduce with ministerial format
-    if len(combined_input) <= MAX_DIRECT_CHARS:
-        result = await _call_ollama(
-            MERGE_NOTES_PROMPT,
-            combined_input,
-            num_predict=4096,
+    merged: list[str] = [paragraphs[0]]
+
+    for para in paragraphs[1:]:
+        stripped = para.strip()
+        if not stripped:
+            continue
+
+        is_short_single = (
+            len(stripped) <= 80
+            and not stripped.startswith('#')
+            and not stripped.startswith('-')
+            and not stripped.startswith('*')
+            and not stripped.startswith('|')  # table rows
+            # Single sentence: no mid-text sentence endings
+            and not re.search(r'[.!?]\s+[A-ZĄĆĘŁŃÓŚŹŻ]', stripped)
         )
-        logger.info("REDUCE result: %d chars", len(result))
-        return result
 
-    # If still too long, reduce in pairs
-    logger.info("REDUCE: merged notes still too long (%d chars), reducing in pairs",
-                len(combined_input))
-    while len(partial_notes) > 1:
-        merged = []
-        for i in range(0, len(partial_notes), 2):
-            if i + 1 < len(partial_notes):
-                pair = f"--- CZĘŚĆ A ---\n\n{partial_notes[i]}\n\n--- CZĘŚĆ B ---\n\n{partial_notes[i+1]}"
-                logger.info("REDUCE pair %d+%d (%d chars)", i + 1, i + 2, len(pair))
-                result = await _call_ollama(MERGE_NOTES_PROMPT, pair, num_predict=4096)
-                merged.append(result.strip())
-            else:
-                merged.append(partial_notes[i])
-        partial_notes = merged
+        if is_short_single and merged:
+            # Append to previous paragraph with a space
+            merged[-1] = merged[-1].rstrip() + ' ' + stripped
+        else:
+            merged.append(para)
 
-    # Final pass with ministerial format
-    final = await _call_ollama(NOTE_SYSTEM_PROMPT, partial_notes[0], num_predict=4096)
-    logger.info("REDUCE final: %d chars", len(final))
-    return final
+    return '\n\n'.join(merged)
 
 
-async def _call_ollama(system: str, user: str, num_predict: int = 4096) -> str:
-    """Make a single call to Ollama."""
-    async with httpx.AsyncClient(timeout=600.0) as client:
-        response = await client.post(
-            f"{OLLAMA_BASE_URL}/api/chat",
-            json={
-                "model": OLLAMA_MODEL,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                "stream": False,
-                "options": {
-                    "temperature": 0.2,
-                    "num_predict": num_predict,
-                    "num_ctx": 32768,
-                    "top_p": 0.9,
-                    "repeat_penalty": 1.3,
-                    "repeat_last_n": 256,
-                },
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
-    return data.get("message", {}).get("content", "").strip()
+def _clean_response(text: str, input_text: str = "") -> str:
+    """Clean LLM response: strip artifacts, dialogue format, raw copies."""
+    text = re.sub(r'\[/?INST\]', '', text)
 
+    # Strip preambles
+    text = re.sub(
+        r'^(Oto |Poniżej |Streszczenie|Podsumowanie|W trakcie spotkania)[^\n]*\n*',
+        '', text, flags=re.IGNORECASE,
+    )
 
-def _clean_note_output(text: str) -> str:
-    """Strip preamble, trailing commentary, and repeated blocks."""
-    # Strip preamble (hallucinated transcript continuation, [/INST] tags, etc.)
-    match = re.search(r'^(#{2,3}\s)', text, re.MULTILINE)
-    if match:
-        text = text[match.start():]
-    # Strip trailing meta-commentary (e.g. "Ta notatka zawiera...")
-    text = re.sub(r'\n(?:Ta notatka|Powyższa notatka|Notatka sporządzona|Notatka została).*$',
-                  '', text, flags=re.DOTALL)
-    # Detect repeated note — cut at second occurrence of "Metryczka" or "METRYCZKA"
-    parts = re.split(r'(?=\n.*Metryczka)', text, flags=re.IGNORECASE)
-    if len(parts) > 1:
-        text = parts[0]
-        logger.warning("Detected repeated note blocks (%d repetitions removed)", len(parts) - 1)
+    # Strip trailing meta-commentary
+    text = re.sub(
+        r'\n(?:Ta notatka|Powyższe|Notatka sporządzona|Notatka została|Powyższy tekst|'
+        r'Ponadto,? uczestnicy).*$',
+        '', text, flags=re.DOTALL,
+    )
+
+    # Remove dialogue format lines: [Osoba 1]: ..., [Imię]: ...
+    text = re.sub(r'^\[(?:Osoba\s*\d*|Imię|Nieznane imię|osoba)\][:\s].*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
+
+    # Remove [Osoba], [Osoba N], [Imię] inline
+    text = re.sub(r'\[Osoba\s*\d*\]', '', text)
+    text = re.sub(r'\[(?:Nieznane |nieznane )?[Ii]mię\]', '', text)
+    text = re.sub(r'\[(?:Twoje |twoje )?imię[^]]*\]', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\[Podpis\]', '', text, flags=re.IGNORECASE)
+
+    # Strip email/letter artifacts
+    text = re.sub(r'^Dzień dobry[,!.]?\s*\n*', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\n(?:Z poważaniem|Pozdrawiam|Dziękuję za)[,.]?\s*\n.*$', '', text, flags=re.DOTALL)
+    text = re.sub(r'\n(?:Dziękuję za Twoją uwagę).*$', '', text, flags=re.DOTALL)
+
+    # --- Strip repeated "W trakcie spotkania poruszono" preambles ---
+    # Keep the first occurrence, remove subsequent paragraph-starting ones
+    _preamble_pat = re.compile(
+        r'(?:^|\n\n)W trakcie spotkania poruszono[^\n]*',
+        flags=re.IGNORECASE,
+    )
+    _first_preamble_seen = False
+
+    def _dedup_preamble(m: re.Match) -> str:
+        nonlocal _first_preamble_seen
+        if not _first_preamble_seen:
+            _first_preamble_seen = True
+            return m.group(0)
+        return m.group(0)[:m.group(0).index('W')] if '\n' in m.group(0) else ''
+
+    text = _preamble_pat.sub(_dedup_preamble, text)
+
+    # --- Strip generic filler sentences ---
+    _filler_patterns = [
+        r'Podczas spotkania poruszono wiele tematów\.?',
+        r'Wszystkie te tematy są istotne\.?',
+        r'Powyższe tematy były szeroko dyskutowane\.?',
+        r'Spotkanie dotyczyło wielu ważnych kwestii\.?',
+        r'Omówiono szereg istotnych zagadnień\.?',
+        r'Dyskusja dotyczyła wielu aspektów\.?',
+        r'Poruszono wiele istotnych kwestii\.?',
+        r'Tematy te są niezwykle ważne dla dalszych prac\.?',
+    ]
+    for pat in _filler_patterns:
+        text = re.sub(r'(?:^|\n)\s*' + pat + r'\s*(?=\n|$)', '', text, flags=re.IGNORECASE)
+
+    # --- Remove hallucinated names not present in input text ---
+    if input_text:
+        text = _remove_hallucinated_names(text, input_text)
+
+    # Detect raw transcription copy — if >50% of output chars appear verbatim in input
+    if input_text and len(text) > 200:
+        # Check if output is just a copy of input
+        overlap = _text_overlap_ratio(input_text, text)
+        if overlap > 0.6:
+            logger.warning("Output appears to be raw copy of input (%.0f%% overlap), discarding", overlap * 100)
+            return ""
+
+    text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
 
+def _extract_names_from_text(text: str) -> set[str]:
+    """Extract capitalized multi-word names (potential proper names) from text."""
+    # Match sequences of 2-4 capitalized words that look like names
+    # e.g. "Jan Kowalski", "Anna Maria Nowak"
+    pattern = re.compile(r'\b([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+){1,3})\b')
+    candidates = set()
+    for m in pattern.finditer(text):
+        name = m.group(1)
+        # Filter out common Polish phrases that look like names but aren't
+        words = name.split()
+        if all(len(w) >= 2 for w in words):
+            candidates.add(name)
+    return candidates
+
+
+def _remove_hallucinated_names(output: str, source: str) -> str:
+    """Remove person names from output that don't appear in source text.
+
+    Targets patterns like 'Jan Kowalski' — capitalized first + last name
+    that the LLM invented. Single capitalized words (city names, common
+    nouns) are left alone to avoid false positives.
+    """
+    source_lower = source.lower()
+    source_names = _extract_names_from_text(source)
+    source_names_lower = {n.lower() for n in source_names}
+
+    output_names = _extract_names_from_text(output)
+
+    for name in output_names:
+        if name.lower() not in source_names_lower and name.lower() not in source_lower:
+            # This name was hallucinated — remove it from output
+            # Replace "Name" with empty string, clean up leftover artifacts
+            logger.info("Removing hallucinated name: %s", name)
+            output = output.replace(name, '')
+
+    # Clean up artifacts from name removal: double spaces, orphaned commas, empty parens
+    output = re.sub(r'  +', ' ', output)
+    output = re.sub(r'\(\s*\)', '', output)
+    output = re.sub(r',\s*,', ',', output)
+    output = re.sub(r'^\s*,\s*', '', output, flags=re.MULTILINE)
+    output = re.sub(r',\s*\.', '.', output)
+
+    return output
+
+
+def _text_overlap_ratio(source: str, output: str) -> float:
+    """Estimate how much of output is verbatim from source."""
+    # Quick check: compare 50-char windows
+    if len(output) < 100:
+        return 0.0
+    window = 50
+    matches = 0
+    total = 0
+    for i in range(0, len(output) - window, window):
+        chunk = output[i:i + window]
+        total += 1
+        if chunk in source:
+            matches += 1
+    return matches / total if total > 0 else 0.0
+
+
+async def _call_ollama(
+    system: str,
+    user: str,
+    num_predict: int = 4096,
+    temperature: float = 0.0,
+) -> str:
+    """Call Ollama. temperature=0 for deterministic output."""
+    last_result = ""
+    for attempt in range(1, MAX_RETRIES + 2):
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            response = await client.post(
+                f"{OLLAMA_BASE_URL}/api/chat",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    "stream": False,
+                    "options": {
+                        "temperature": temperature,
+                        "num_predict": num_predict,
+                        "num_ctx": 16384,
+                        "top_p": 0.7,
+                        "repeat_penalty": 1.1,
+                        "repeat_last_n": 128,
+                    },
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+        result = data.get("message", {}).get("content", "").strip()
+        last_result = result
+
+        if len(result) >= 50 and not _is_garbage(result):
+            return result
+
+        logger.warning("LLM attempt %d: poor response (%d chars)", attempt, len(result))
+        temperature = min(temperature + 0.1, 0.3)
+
+    return last_result
+
+
+def _is_garbage(text: str) -> bool:
+    """Detect degenerate output."""
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    if len(lines) >= 5:
+        counts = Counter(lines)
+        if counts.most_common(1)[0][1] > len(lines) * 0.5:
+            return True
+    if re.search(r'(.)\1{20,}', text):
+        return True
+    if re.search(r'(\b\w+\b)(?:\s+\1){5,}', text):
+        return True
+    return False
+
+
 async def check_ollama_health() -> bool:
-    """Check if Ollama is running and the model is available."""
+    """Check if Ollama is running and model available."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
             resp.raise_for_status()
             models = resp.json().get("models", [])
-            model_names = [m.get("name", "") for m in models]
-            ok = any(OLLAMA_MODEL.lower() in name.lower() for name in model_names)
+            names = [m.get("name", "") for m in models]
+            ok = any(OLLAMA_MODEL.lower() in n.lower() for n in names)
             if not ok:
-                logger.warning("Ollama is running but model %s not found (available: %s)", OLLAMA_MODEL, model_names)
+                logger.warning("Model %s not found (available: %s)", OLLAMA_MODEL, names)
             return ok
     except Exception as e:
         logger.warning("Ollama health check failed: %s", e)

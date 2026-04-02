@@ -185,7 +185,7 @@ Stefka uzywa podejscia **chunk-summarize** do przetwarzania tekstu przez PLLuM-1
 Tekst wejsciowy jest dzielony na fragmenty po ~6000 znakow (`CHUNK_SIZE`) z 400-znakowym nakladaniem (`CHUNK_OVERLAP`). Ciecie odbywa sie na granicach zdan. Ostatni fragment, jesli jest krotszy niz 40% docelowego rozmiaru, jest laczony z poprzednim.
 
 ### Streszczanie fragmentow
-
+ 
 Kazdy fragment jest przetwarzany osobno przez PLLuM z promptem systemowym:
 
 > *Strzesc ponizszy fragment spotkania w akapitach. Zachowaj imiona, nazwiska, daty, kwoty, nazwy. Nie anonimizuj. Nie pisz dialogu. Nie kopiuj surowego tekstu. Zacznij od tresci.*

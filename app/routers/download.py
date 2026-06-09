@@ -44,8 +44,8 @@ async def download_note(job_id: str, fmt: str | None = None):
             f"Notatka została wyeksportowana jako .{job.export_format}.",
         )
 
-    safe_name = Path(job.original_filename).stem if job.original_filename else "notatka"
-    download_name = f"{safe_name}_notatka.{fmt}"
+    safe_name = Path(job.original_filename).stem if job.original_filename else "wynik"
+    download_name = f"{safe_name}_tresc.{fmt}"
 
     media_types = {
         "md": "text/markdown",

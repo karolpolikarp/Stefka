@@ -195,7 +195,7 @@ function updateProgress(job) {
         pending: "Oczekiwanie...",
         processing: "Przetwarzanie pliku",
         transcribing: "Transkrypcja",
-        structuring: "Strukturyzowanie notatki",
+        structuring: "Strukturyzowanie treści",
         exporting: "Eksportowanie",
         completed: "Ukończono",
         failed: "Błąd",
@@ -206,11 +206,11 @@ function updateProgress(job) {
 // --- Result ---
 
 function showResult(job) {
-    resultMessage.textContent = "Notatka została wygenerowana pomyślnie.";
+    resultMessage.textContent = "Wynik został wygenerowany pomyślnie.";
 
     const baseName = (job.original_filename || "plik").replace(/\.[^.]+$/, "");
     const fmt = job.export_format || exportFormat.value;
-    resultFilename.textContent = baseName + "_notatka." + fmt;
+    resultFilename.textContent = baseName + "_tresc." + fmt;
     resultFormat.textContent = FORMAT_LABELS[fmt] || fmt;
 
     showSection("result");

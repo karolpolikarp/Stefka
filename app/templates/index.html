@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
-    <title>Stefka — Lokalna Transkrypcja i Notatki</title>
+    <title>Stefka — Lokalna Transkrypcja i Strukturyzowanie Treści</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -35,7 +35,7 @@
     <div class="container">
         <header>
             <h1>Stefka<span class="accent-dot">.</span></h1>
-            <p class="subtitle">Lokalna transkrypcja audio i strukturyzowanie notatek</p>
+            <p class="subtitle">Lokalna transkrypcja audio i strukturyzowanie treści</p>
             <p class="security-badge">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -79,7 +79,7 @@
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="export-format">Format notatki</label>
+                        <label for="export-format">Format wyniku</label>
                         <select id="export-format" name="export_format">
                             <option value="md">Markdown (.md)</option>
                             <option value="pdf">PDF (.pdf)</option>
@@ -139,7 +139,7 @@
                         <polyline points="20 6 9 17 4 12"/>
                     </svg>
                 </span>
-                Notatka gotowa
+                Gotowe
             </h2>
             <p id="result-message"></p>
             <div class="result-info">
@@ -147,7 +147,7 @@
                 <span class="ri-format" id="result-format"></span>
             </div>
             <div class="result-actions">
-                <button id="download-btn" class="btn-primary">Pobierz notatkę</button>
+                <button id="download-btn" class="btn-primary">Pobierz wynik</button>
                 <button id="new-file-btn" class="btn-secondary">Przetwórz kolejny plik</button>
             </div>
         </section>

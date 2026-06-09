@@ -1,5 +1,6 @@
 import logging
 import logging.handlers
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -13,6 +14,9 @@ from app.services.llm import check_ollama_health
 
 
 def _setup_logging():
+    # Poziom logowania konfigurowalny przez zmienną LOG_LEVEL (domyślnie INFO)
+    level = getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+
     fmt = logging.Formatter(
         "%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -22,16 +26,16 @@ def _setup_logging():
     fh = logging.handlers.RotatingFileHandler(
         LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
     )
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(level)
     fh.setFormatter(fmt)
 
     # Console handler
     ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
+    ch.setLevel(level)
     ch.setFormatter(fmt)
 
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(level)
     root.addHandler(fh)
     root.addHandler(ch)
 

@@ -2,7 +2,7 @@
 
 ## Kontekst i Cel
 
-Stefka to lokalna aplikacja webowa dla Ministerstwa Cyfryzacji, zaprojektowana z naciskiem na **bezpieczeństwo i prywatność danych**. Wszystkie modele AI działają lokalnie na MacBooku — żadne dane nie opuszczają maszyny.
+Stefka to lokalna aplikacja webowa zaprojektowana z naciskiem na **bezpieczeństwo i prywatność danych**. Wszystkie modele AI działają lokalnie na MacBooku — żadne dane nie opuszczają maszyny.
 
 Aplikacja przyjmuje pliki audio lub tekstowe i przetwarza je na notatki służbowe:
 - **mlx-whisper** (transkrypcja mowy na tekst, natywnie Apple Silicon)
@@ -196,7 +196,7 @@ stefka/
 │   │   └── index.html            # Główna strona (glassmorphism 2026)
 │   │
 │   └── static/
-│       ├── css/style.css         # Design system MC
+│       ├── css/style.css         # Design system
 │       └── js/app.js             # Upload, SSE, download logic
 │
 ├── data/

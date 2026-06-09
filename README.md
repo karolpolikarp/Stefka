@@ -9,7 +9,7 @@
 
 Stefka przetwarza pliki audio i tekstowe na ustandaryzowane notatki sluzbowe. Wszystkie modele AI dzialaja lokalnie -- zadne dane nie opuszczaja maszyny uzytkownika.
 
-Aplikacja zostala zaprojektowana na potrzeby Ministerstwa Cyfryzacji.
+> ℹ️ **Charakter projektu:** to prototyp / dowod koncepcji zbudowany w kilka godzin, a nie produkcyjny system. Dziala i realizuje pelny pipeline (transkrypcja → strukturyzacja → eksport), ale ma swiadome ograniczenia: jeden uzytkownik na raz, brak kolejki zadan, niestabilna jakosc outputu modelu 12B (szczegoly w sekcji *Znane ograniczenia*).
 
 <!-- screenshot -->
 
@@ -344,6 +344,24 @@ stefka/
 
 ---
 
+## Testy
+
+Smoke testy obejmuja czysta logike pipeline'u (chunkowanie, detekcja zdegenerowanego
+outputu, skladanie noty) -- nie wymagaja uruchomionej Ollamy ani modeli.
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+---
+
 ## Licencja
 
-<!-- TODO: dodac licencje -->
+Kod aplikacji: **MIT** (patrz [LICENSE](LICENSE)).
+
+> ⚠️ **Uwaga o modelu:** domyślny model językowy `CYFRAGOVPL/PLLuM-12B-nc-instruct`
+> jest na licencji **CC-BY-NC-4.0 (niekomercyjnej)**. Użycie aplikacji z tym
+> modelem do celów komercyjnych jest niedozwolone. Do zastosowań komercyjnych
+> należy podmienić model na wariant permisywny (np. `CYFRAGOVPL/PLLuM-12B-instruct`,
+> Apache-2.0). Szczegóły w pliku [NOTICE](NOTICE).

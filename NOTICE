@@ -1,0 +1,40 @@
+Stefka — informacja o licencjach komponentów zewnętrznych
+==========================================================
+
+Kod źródłowy aplikacji Stefka jest udostępniany na licencji MIT (patrz plik
+LICENSE). Aplikacja korzysta jednak z modeli i bibliotek osób trzecich, które
+mają WŁASNE licencje. Poniższe modele NIE są dołączone do tego repozytorium —
+są pobierane lokalnie przez `setup.sh`.
+
+--------------------------------------------------------------------------
+WAŻNE — model językowy jest NIEKOMERCYJNY
+--------------------------------------------------------------------------
+
+Domyślny model językowy:
+
+    CYFRAGOVPL/PLLuM-12B-nc-instruct
+    Licencja: CC-BY-NC-4.0 (Creative Commons Attribution-NonCommercial 4.0)
+    https://huggingface.co/CYFRAGOVPL/PLLuM-12B-nc-instruct
+
+Sufiks "-nc" oznacza NON-COMMERCIAL. Używanie Stefki z tym modelem do celów
+KOMERCYJNYCH jest NIEDOZWOLONE przez licencję modelu — niezależnie od licencji
+MIT samego kodu.
+
+Do zastosowań komercyjnych należy podmienić model na wariant na licencji
+permisywnej, np.:
+
+    CYFRAGOVPL/PLLuM-12B-instruct   (Apache-2.0)
+    https://huggingface.co/CYFRAGOVPL/PLLuM-12B-instruct
+
+i odpowiednio zaktualizować `setup.sh` oraz `Modelfile.pllum`.
+
+--------------------------------------------------------------------------
+Pozostałe komponenty
+--------------------------------------------------------------------------
+
+Model transkrypcji:
+    mlx-community/whisper-large-v3-turbo
+    Bazuje na OpenAI Whisper — Licencja: MIT
+
+Biblioteki Python: patrz requirements.txt. Każda zachowuje własną licencję
+(FastAPI, uvicorn, mlx-whisper, weasyprint, python-docx, PyPDF2 i in.).

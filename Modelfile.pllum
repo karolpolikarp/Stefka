@@ -1,4 +1,4 @@
-FROM /Users/karol/stefka/models/pllum-12b-nc-instruct-q8_0.gguf
+FROM ./models/pllum-12b-nc-instruct-q8_0.gguf
 
 TEMPLATE """{{- if .System }}[INST]{{ .System }}
 

@@ -40,8 +40,8 @@ async def download_note(job_id: str, fmt: str | None = None):
     if not file_path.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"Plik notatki w formacie .{fmt} nie znaleziony. "
-            f"Notatka została wyeksportowana jako .{job.export_format}.",
+            detail=f"Plik wyniku w formacie .{fmt} nie znaleziony. "
+            f"Wynik został wyeksportowany jako .{job.export_format}.",
         )
 
     safe_name = Path(job.original_filename).stem if job.original_filename else "wynik"

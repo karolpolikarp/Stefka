@@ -6,8 +6,15 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![mlx-whisper](https://img.shields.io/badge/mlx--whisper-large--v3--turbo-FF6F00?logo=apple&logoColor=white)](https://github.com/ml-explore/mlx-examples)
 [![PLLuM](https://img.shields.io/badge/PLLuM-12B--instruct-1E88E5)](https://huggingface.co/CYFRAGOVPL/PLLuM-12B-nc-instruct)
+[![Platforma](https://img.shields.io/badge/platforma-macOS%20Apple%20Silicon%20only-000000?logo=apple&logoColor=white)](#wymagania-wstępne)
+[![Licencja](https://img.shields.io/badge/kod-MIT-green)](LICENSE)
+[![Model](https://img.shields.io/badge/model-CC--BY--NC--4.0%20(niekomercyjny)-orange)](NOTICE)
 
-Stefka przetwarza pliki audio i tekstowe na uporządkowane, ustrukturyzowane treści. Wszystkie modele AI działają lokalnie — żadne dane nie opuszczają maszyny użytkownika.
+Stefka przetwarza pliki audio i tekstowe na uporządkowane, ustrukturyzowane treści. Strukturyzację wykonuje **[PLLuM](https://huggingface.co/CYFRAGOVPL/PLLuM-12B-nc-instruct) — oficjalny polski model językowy (CYFRAGOVPL)**, uruchamiany lokalnie przez Ollamę. Transkrypcję realizuje mlx-whisper. Wszystkie modele AI działają w 100% lokalnie — żadne dane nie opuszczają maszyny użytkownika.
+
+> 🍎 **Działa WYŁĄCZNIE na macOS z Apple Silicon (M1/M2/M3/M4).** Aplikacja jest zbudowana wokół frameworka MLX i akceleracji GPU Apple — **nie uruchomi się na Linux, Windows ani Intel Macu.** To wymóg twardy, nie zalecenie.
+
+> 🇵🇱 **Rdzeń to PLLuM** — całe strukturyzowanie treści opiera się na polskim modelu `CYFRAGOVPL/PLLuM-12B-nc-instruct`. Model jest **niekomercyjny (CC-BY-NC-4.0)** — szczegóły w sekcji [Licencja](#licencja).
 
 > ℹ️ **Charakter projektu:** to prototyp / dowód koncepcji zbudowany w kilka godzin, a nie produkcyjny system. Działa i realizuje pełny pipeline (transkrypcja → strukturyzacja → eksport), ale ma świadome ograniczenia: jeden użytkownik na raz, brak kolejki zadań, niestabilna jakość outputu modelu 12B (szczegóły w sekcji *Znane ograniczenia*).
 

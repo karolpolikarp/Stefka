@@ -1,29 +1,29 @@
 # Stefka
 
-**Lokalna aplikacja do transkrypcji audio i strukturyzowania notatek sluzbowych**
+**Lokalna aplikacja do transkrypcji audio i strukturyzowania treści**
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![mlx-whisper](https://img.shields.io/badge/mlx--whisper-large--v3--turbo-FF6F00?logo=apple&logoColor=white)](https://github.com/ml-explore/mlx-examples)
 [![PLLuM](https://img.shields.io/badge/PLLuM-12B--instruct-1E88E5)](https://huggingface.co/CYFRAGOVPL/PLLuM-12B-nc-instruct)
 
-Stefka przetwarza pliki audio i tekstowe na ustandaryzowane notatki sluzbowe. Wszystkie modele AI dzialaja lokalnie -- zadne dane nie opuszczaja maszyny uzytkownika.
+Stefka przetwarza pliki audio i tekstowe na uporządkowane, ustrukturyzowane treści. Wszystkie modele AI działają lokalnie — żadne dane nie opuszczają maszyny użytkownika.
 
-> ℹ️ **Charakter projektu:** to prototyp / dowod koncepcji zbudowany w kilka godzin, a nie produkcyjny system. Dziala i realizuje pelny pipeline (transkrypcja → strukturyzacja → eksport), ale ma swiadome ograniczenia: jeden uzytkownik na raz, brak kolejki zadan, niestabilna jakosc outputu modelu 12B (szczegoly w sekcji *Znane ograniczenia*).
+> ℹ️ **Charakter projektu:** to prototyp / dowód koncepcji zbudowany w kilka godzin, a nie produkcyjny system. Działa i realizuje pełny pipeline (transkrypcja → strukturyzacja → eksport), ale ma świadome ograniczenia: jeden użytkownik na raz, brak kolejki zadań, niestabilna jakość outputu modelu 12B (szczegóły w sekcji *Znane ograniczenia*).
 
 <!-- screenshot -->
 
 ---
 
-## Funkcjonalnosci
+## Funkcjonalności
 
-- **Pelna prywatnosc danych** -- zero komunikacji z zewnetrznymi API, cale przetwarzanie na localhost
-- **Transkrypcja audio** -- mlx-whisper zoptymalizowany pod Apple Silicon (10-15x szybciej niz real-time na M4 Pro)
-- **Strukturyzowanie tekstu** -- polski model jezykowy PLLuM-12B generuje ustandaryzowane notatki sluzbowe
-- **Przetwarzanie plikow tekstowych** -- import z TXT, MD, DOCX, PDF
-- **Eksport wieloformatowy** -- zapis notatek do Markdown, PDF lub DOCX
-- **Interfejs webowy** -- prosta strona z uploadem, paskiem postepu (SSE) i pobieraniem wyniku
-- **Automatyczne czyszczenie** -- pliki tymczasowe usuwane po przetworzeniu, wyniki po 24h
+- **Pełna prywatność danych** — zero komunikacji z zewnętrznymi API, całe przetwarzanie na localhost
+- **Transkrypcja audio** — mlx-whisper zoptymalizowany pod Apple Silicon (10–15x szybciej niż real-time na M4 Pro)
+- **Strukturyzowanie tekstu** — polski model językowy PLLuM-12B porządkuje i strukturyzuje treść
+- **Przetwarzanie plików tekstowych** — import z TXT, MD, DOCX, PDF
+- **Eksport wieloformatowy** — zapis wyniku do Markdown, PDF lub DOCX
+- **Interfejs webowy** — prosta strona z uploadem, paskiem postępu (SSE) i pobieraniem wyniku
+- **Automatyczne czyszczenie** — pliki tymczasowe usuwane po przetworzeniu, wyniki po 24h
 
 ---
 
@@ -31,7 +31,7 @@ Stefka przetwarza pliki audio i tekstowe na ustandaryzowane notatki sluzbowe. Ws
 
 ```
 +---------------------------------------------------------+
-|                     PRZEGLADARKA                        |
+|                     PRZEGLĄDARKA                        |
 |   Upload pliku (audio/tekst) -> Progress bar -> Download |
 +----------------------------+----------------------------+
                              | HTTP / SSE
@@ -65,29 +65,29 @@ Stefka przetwarza pliki audio i tekstowe na ustandaryzowane notatki sluzbowe. Ws
 
 | Komponent | Technologia | Uwagi |
 |---|---|---|
-| Backend | Python 3.11+ / FastAPI | Async, SSE do raportowania postepu |
+| Backend | Python 3.11+ / FastAPI | Async, SSE do raportowania postępu |
 | Transkrypcja | mlx-whisper (large-v3-turbo) | Natywna akceleracja GPU na Apple Silicon |
-| Model jezykowy | PLLuM-12B-nc-instruct via Ollama | Oficjalny model z CYFRAGOVPL/HuggingFace, GGUF Q8 |
+| Model językowy | PLLuM-12B-nc-instruct via Ollama | Oficjalny model z CYFRAGOVPL/HuggingFace, GGUF Q8 |
 | Przetwarzanie audio | ffmpeg + pydub | Konwersja do WAV 16kHz, dzielenie na segmenty |
 | Eksport PDF | WeasyPrint | Konwersja HTML/CSS na PDF |
-| Eksport DOCX | python-docx | Generowanie dokumentow Word z zachowaniem formatowania |
+| Eksport DOCX | python-docx | Generowanie dokumentów Word z zachowaniem formatowania |
 | Ekstrakcja tekstu | PyPDF2, python-docx | Odczyt uploadowanych PDF i DOCX |
-| Frontend | Vanilla HTML/CSS/JS + Jinja2 | Zero zaleznosci frontendowych |
+| Frontend | Vanilla HTML/CSS/JS + Jinja2 | Zero zależności frontendowych |
 
-### Wymagania sprzetowe
+### Wymagania sprzętowe
 
 | Komponent | RAM | Uwagi |
 |---|---|---|
-| mlx-whisper large-v3-turbo | ~3-4 GB | Ladowany na czas transkrypcji |
-| PLLuM-12B-instruct (Q8) | ~13 GB | Ollama zarzadza pamiecia |
+| mlx-whisper large-v3-turbo | ~3-4 GB | Ładowany na czas transkrypcji |
+| PLLuM-12B-instruct (Q8) | ~13 GB | Ollama zarządza pamięcią |
 | System + FastAPI | ~4-6 GB | macOS + Python runtime |
-| **Lacznie** | **~20-23 GB** | Komfortowo przy 48 GB RAM |
+| **Łącznie** | **~20-23 GB** | Komfortowo przy 48 GB RAM |
 
 ---
 
 ## Szybki start
 
-### Wymagania wstepne
+### Wymagania wstępne
 
 - macOS z Apple Silicon (M1 / M2 / M3 / M4)
 - Python 3.11+
@@ -106,12 +106,12 @@ chmod +x setup.sh run.sh
 
 Skrypt `setup.sh` automatycznie:
 
-1. Sprawdza i instaluje zaleznosci systemowe (ffmpeg, Ollama, pango, llama.cpp)
-2. Tworzy srodowisko wirtualne Python i instaluje zaleznosci
+1. Sprawdza i instaluje zależności systemowe (ffmpeg, Ollama, pango, llama.cpp)
+2. Tworzy środowisko wirtualne Python i instaluje zależności
 3. Pobiera oficjalny model PLLuM-12B-nc-instruct z [CYFRAGOVPL/HuggingFace](https://huggingface.co/CYFRAGOVPL/PLLuM-12B-nc-instruct)
 4. Konwertuje model do formatu GGUF Q8_0 i importuje do Ollama
 
-Pierwsze uruchomienie `setup.sh` moze potrwac kilkanascie minut (pobranie ~24 GB + konwersja modelu).
+Pierwsze uruchomienie `setup.sh` może potrwać kilkanaście minut (pobranie ~24 GB + konwersja modelu).
 
 ### Uruchomienie
 
@@ -119,13 +119,13 @@ Pierwsze uruchomienie `setup.sh` moze potrwac kilkanascie minut (pobranie ~24 GB
 ./run.sh
 ```
 
-Aplikacja dostepna pod: **http://localhost:8000**
+Aplikacja dostępna pod: **http://localhost:8000**
 
-Skrypt `run.sh` uruchamia Ollama (jesli nie dziala) oraz serwer FastAPI na porcie 8000. Aplikacja nasluchuje wylacznie na `127.0.0.1` -- nie jest dostepna z sieci.
+Skrypt `run.sh` uruchamia Ollama (jeśli nie działa) oraz serwer FastAPI na porcie 8000. Aplikacja nasłuchuje wyłącznie na `127.0.0.1` — nie jest dostępna z sieci.
 
 ---
 
-## Jak to dziala
+## Jak to działa
 
 ### Workflow A: Plik audio
 
@@ -142,9 +142,9 @@ Konwersja do WAV 16kHz mono (ffmpeg)
 Dzielenie na segmenty ~30s z 2s overlap
     |
     v
-Transkrypcja kazdego segmentu (mlx-whisper)
+Transkrypcja każdego segmentu (mlx-whisper)
   + usuwanie halucynacji Whisper
-  + deduplikacja overlappujacego tekstu
+  + deduplikacja overlappującego tekstu
     |
     v
 Strukturyzowanie przez PLLuM (chunk-summarize)
@@ -153,7 +153,7 @@ Strukturyzowanie przez PLLuM (chunk-summarize)
 Eksport do wybranego formatu (MD / PDF / DOCX)
     |
     v
-Pobranie wyniku z przegladarki
+Pobranie wyniku z przeglądarki
 ```
 
 ### Workflow B: Plik tekstowy
@@ -171,85 +171,85 @@ Strukturyzowanie przez PLLuM (chunk-summarize)
 Eksport do wybranego formatu
     |
     v
-Pobranie wyniku z przegladarki
+Pobranie wyniku z przeglądarki
 ```
 
 ---
 
 ## Pipeline LLM
 
-Stefka uzywa podejscia **chunk-summarize** do przetwarzania tekstu przez PLLuM-12B:
+Stefka używa podejścia **chunk-summarize** do przetwarzania tekstu przez PLLuM-12B:
 
 ### Dzielenie na fragmenty
 
-Tekst wejsciowy jest dzielony na fragmenty po ~6000 znakow (`CHUNK_SIZE`) z 400-znakowym nakladaniem (`CHUNK_OVERLAP`). Ciecie odbywa sie na granicach zdan. Ostatni fragment, jesli jest krotszy niz 40% docelowego rozmiaru, jest laczony z poprzednim.
+Tekst wejściowy jest dzielony na fragmenty po ~6000 znaków (`CHUNK_SIZE`) z 400-znakowym nakładaniem (`CHUNK_OVERLAP`). Cięcie odbywa się na granicach zdań. Ostatni fragment, jeśli jest krótszy niż 40% docelowego rozmiaru, jest łączony z poprzednim.
 
-### Streszczanie fragmentow
- 
-Kazdy fragment jest przetwarzany osobno przez PLLuM z promptem systemowym:
+### Streszczanie fragmentów
 
-> *Strzesc ponizszy fragment spotkania w akapitach. Zachowaj imiona, nazwiska, daty, kwoty, nazwy. Nie anonimizuj. Nie pisz dialogu. Nie kopiuj surowego tekstu. Zacznij od tresci.*
+Każdy fragment jest przetwarzany osobno przez PLLuM z promptem systemowym:
 
-### Parametry wywolania LLM
+> *Streść poniższy fragment spotkania w akapitach. Zachowaj imiona, nazwiska, daty, kwoty, nazwy. Nie anonimizuj. Nie pisz dialogu. Nie kopiuj surowego tekstu. Zacznij od treści.*
 
-| Parametr | Wartosc | Uzasadnienie |
+### Parametry wywołania LLM
+
+| Parametr | Wartość | Uzasadnienie |
 |---|---|---|
-| `temperature` | 0.0 | Deterministyczny output, brak kreatywnosci |
-| `num_predict` | 4096 | Maks. dlugosc odpowiedzi |
+| `temperature` | 0.0 | Deterministyczny output, brak kreatywności |
+| `num_predict` | 4096 | Maks. długość odpowiedzi |
 | `num_ctx` | 16384 | Okno kontekstu |
-| `top_p` | 0.7 | Ograniczenie losowosci |
-| `repeat_penalty` | 1.1 | Kara za powtorzenia |
-| `repeat_last_n` | 128 | Zakres detekcji powtorzen |
+| `top_p` | 0.7 | Ograniczenie losowości |
+| `repeat_penalty` | 1.1 | Kara za powtórzenia |
+| `repeat_last_n` | 128 | Zakres detekcji powtórzeń |
 
 ### Post-processing
 
-Odpowiedzi LLM przechodza przez rozbudowane czyszczenie:
+Odpowiedzi LLM przechodzą przez rozbudowane czyszczenie:
 
-- Usuwanie artefaktow `[INST]` / `[/INST]`
-- Usuwanie preambul i meta-komentarzy
+- Usuwanie artefaktów `[INST]` / `[/INST]`
+- Usuwanie preambuł i meta-komentarzy
 - Usuwanie formatu dialogowego (`[Osoba 1]: ...`)
-- Usuwanie halucynowanych imion i nazwisk (porownanie z tekstem zrodlowym)
-- Wykrywanie zdegenerowanych odpowiedzi (powtorzenia, garbage output)
-- Wykrywanie surowych kopii wejscia (>60% overlap -> odrzucenie)
-- Laczenie krotkich akapitow-sierot z poprzednimi
+- Usuwanie halucynowanych imion i nazwisk (porównanie z tekstem źródłowym)
+- Wykrywanie zdegenerowanych odpowiedzi (powtórzenia, garbage output)
+- Wykrywanie surowych kopii wejścia (>60% overlap → odrzucenie)
+- Łączenie krótkich akapitów-sierot z poprzednimi
 
-### Skladanie notatki
+### Składanie wyniku
 
-Streszczenia fragmentow sa laczone w kod (bez dodatkowego wywolania LLM) w ustandaryzowany format notatki sluzbowej z data przetworzenia.
+Streszczenia fragmentów są łączone w kodzie (bez dodatkowego wywołania LLM) w ustandaryzowany, ustrukturyzowany dokument z datą przetworzenia.
 
 ---
 
 ## Konfiguracja
 
-Parametry konfiguracyjne znajduja sie w `app/config.py`:
+Parametry konfiguracyjne znajdują się w `app/config.py`:
 
-| Parametr | Wartosc domyslna | Opis |
+| Parametr | Wartość domyślna | Opis |
 |---|---|---|
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Adres serwera Ollama |
 | `OLLAMA_MODEL` | `pllum-12b-instruct` | Nazwa modelu w Ollama |
 | `WHISPER_MODEL` | `mlx-community/whisper-large-v3-turbo` | Model Whisper (HuggingFace) |
 | `MAX_UPLOAD_SIZE_MB` | `500` | Maks. rozmiar uploadu w MB |
-| `AUDIO_CHUNK_SECONDS` | `30` | Dlugosc segmentu audio w sekundach |
-| `AUDIO_OVERLAP_SECONDS` | `2` | Nakladanie miedzy segmentami |
+| `AUDIO_CHUNK_SECONDS` | `30` | Długość segmentu audio w sekundach |
+| `AUDIO_OVERLAP_SECONDS` | `2` | Nakładanie między segmentami |
 
-Logi aplikacji zapisywane sa do `logs/stefka.log` (rotacja co 5 MB, 3 kopie zapasowe).
+Logi aplikacji zapisywane są do `logs/stefka.log` (rotacja co 5 MB, 3 kopie zapasowe). Poziom logowania można ustawić zmienną `LOG_LEVEL` (domyślnie `INFO`).
 
 ---
 
-## Obslugiwane formaty
+## Obsługiwane formaty
 
-### Pliki wejsciowe
+### Pliki wejściowe
 
 | Typ | Formaty |
 |---|---|
 | Audio | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.webm`, `.wma`, `.aac` |
 | Tekst | `.txt`, `.md`, `.docx`, `.pdf` |
 
-### Formaty wyjsciowe
+### Formaty wyjściowe
 
 | Format | Zastosowanie |
 |---|---|
-| Markdown (`.md`) | Lekki, czytelny, latwy do dalszej edycji |
+| Markdown (`.md`) | Lekki, czytelny, łatwy do dalszej edycji |
 | PDF (`.pdf`) | Gotowy do druku i archiwizacji |
 | DOCX (`.docx`) | Edytowalny w Microsoft Word / LibreOffice |
 
@@ -261,15 +261,16 @@ Logi aplikacji zapisywane sa do `logs/stefka.log` (rotacja co 5 MB, 3 kopie zapa
 stefka/
 |-- CLAUDE.md                        # Specyfikacja projektu
 |-- README.md                        # Ten plik
-|-- requirements.txt                 # Zaleznosci Python
+|-- requirements.txt                 # Zależności Python
+|-- requirements-dev.txt             # Zależności deweloperskie (testy)
 |-- setup.sh                         # Skrypt instalacyjny
 |-- run.sh                           # Skrypt uruchomieniowy
 |-- Modelfile.pllum                  # Definicja modelu dla Ollama
 |
 |-- app/
 |   |-- __init__.py
-|   |-- main.py                      # FastAPI -- punkt wejscia
-|   |-- config.py                    # Konfiguracja (modele, sciezki, limity)
+|   |-- main.py                      # FastAPI — punkt wejścia
+|   |-- config.py                    # Konfiguracja (modele, ścieżki, limity)
 |   |
 |   |-- routers/
 |   |   |-- upload.py                # POST /api/upload
@@ -293,9 +294,12 @@ stefka/
 |       |-- css/style.css
 |       +-- js/app.js
 |
+|-- tests/
+|   +-- test_smoke.py                # Smoke testy czystej logiki pipeline'u
+|
 |-- data/
 |   |-- uploads/                     # Pliki tymczasowe (czyszczone po przetworzeniu)
-|   +-- outputs/                     # Wygenerowane notatki (czyszczone po 24h)
+|   +-- outputs/                     # Wygenerowane wyniki (czyszczone po 24h)
 |
 |-- logs/
 |   +-- stefka.log                   # Logi aplikacji (rotacja 5 MB)
@@ -310,25 +314,25 @@ stefka/
 
 ### PLLuM-12B
 
-- Model 12B parametrow moze generowac powtorzenia w dluzszych odpowiedziach -- aplikacja aktywnie je wykrywa i filtruje
-- Zdarzaja sie halucynacje imion i nazwisk -- post-processing usuwa nazwiska nieobecne w tekscie zrodlowym
-- Przy zlozonych tematach technicznych streszczenia moga byc uproszczone
-- Okno kontekstu ograniczone do 16K tokenow na zapytanie (ograniczenie wydajnosciowe, nie modelowe)
-- Brak kroku laczenia (merge) streszsczen -- notatka jest skladana w kodzie, nie przez LLM
+- Model 12B parametrów może generować powtórzenia w dłuższych odpowiedziach — aplikacja aktywnie je wykrywa i filtruje
+- Zdarzają się halucynacje imion i nazwisk — post-processing usuwa nazwiska nieobecne w tekście źródłowym (czasem zbyt agresywnie — może usunąć prawdziwe imię)
+- Przy złożonych tematach technicznych streszczenia mogą być uproszczone
+- Okno kontekstu ograniczone do 16K tokenów na zapytanie (ograniczenie wydajnościowe, nie modelowe)
+- Brak kroku łączenia (merge) streszczeń — wynik jest składany w kodzie, nie przez LLM
 
 ### Whisper (mlx-whisper)
 
-- Na cichych fragmentach audio model generuje halucynacje ("Dziekuje za ogladanie", "Subskrybuj" itp.) -- aplikacja je filtruje
-- Powtarzajace sie slowa na granicach segmentow -- deduplikacja przez dopasowanie dokladne i rozmyte (SequenceMatcher)
-- Transkrypcja ustawiona na jezyk polski (`language="pl"`) -- inne jezyki nie sa obslugiwane
-- `condition_on_previous_text=False` zapobiega propagacji bledow miedzy segmentami kosztem wiekszej liczby powtorzen na granicach
+- Na cichych fragmentach audio model generuje halucynacje ("Dziękuję za oglądanie", "Subskrybuj" itp.) — aplikacja je filtruje
+- Powtarzające się słowa na granicach segmentów — deduplikacja przez dopasowanie dokładne i rozmyte (SequenceMatcher)
+- Transkrypcja ustawiona na język polski (`language="pl"`) — inne języki nie są obsługiwane
+- `condition_on_previous_text=False` zapobiega propagacji błędów między segmentami kosztem większej liczby powtórzeń na granicach
 
-### Ogolne
+### Ogólne
 
-- Aplikacja obsluguje jednego uzytkownika na raz (brak kolejki zadan)
-- Przetwarzanie dlugich nagran (>30 min) moze trwac kilka minut
+- Aplikacja obsługuje jednego użytkownika na raz (brak kolejki zadań)
+- Przetwarzanie długich nagrań (>30 min) może trwać kilka minut
 - Eksport PDF wymaga zainstalowanego `pango` (instalowany przez `setup.sh`)
-- Tylko macOS z Apple Silicon -- brak wsparcia dla Linux / Windows / Intel Mac
+- Tylko macOS z Apple Silicon — brak wsparcia dla Linux / Windows / Intel Mac
 
 ---
 
@@ -339,15 +343,15 @@ stefka/
 | `/` | GET | Interfejs webowy |
 | `/api/upload` | POST | Upload pliku (multipart/form-data) |
 | `/api/status/{job_id}` | GET | Status przetwarzania (SSE stream) |
-| `/api/download/{job_id}` | GET | Pobranie wygenerowanej notatki |
+| `/api/download/{job_id}` | GET | Pobranie wygenerowanego wyniku |
 | `/api/health` | GET | Sprawdzenie stanu Ollama i modelu |
 
 ---
 
 ## Testy
 
-Smoke testy obejmuja czysta logike pipeline'u (chunkowanie, detekcja zdegenerowanego
-outputu, skladanie noty) -- nie wymagaja uruchomionej Ollamy ani modeli.
+Smoke testy obejmują czystą logikę pipeline'u (chunkowanie, detekcja zdegenerowanego
+outputu, składanie noty) — nie wymagają uruchomionej Ollamy ani modeli.
 
 ```bash
 pip install -r requirements-dev.txt
